@@ -13,6 +13,7 @@ interface CodeEditorProps {
   checking: boolean;
   onSelectFile: (fileId: string) => void;
   onAddFile: () => void;
+  onDeleteFile: (fileId: string) => void;
   onChange: (fileId: string, value: string) => void;
   onRun: () => void;
   onReset: () => void;
@@ -46,7 +47,7 @@ function highlightCSharp(source: string): ReactNode[] {
   return nodes;
 }
 
-export function CodeEditor({ locale, files, activeFileId, diagnostics, checking, onSelectFile, onAddFile, onChange, onRun, onReset }: CodeEditorProps) {
+export function CodeEditor({ locale, files, activeFileId, diagnostics, checking, onSelectFile, onAddFile, onDeleteFile, onChange, onRun, onReset }: CodeEditorProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const gutterRef = useRef<HTMLDivElement>(null);
   const highlightRef = useRef<HTMLPreElement>(null);
@@ -60,8 +61,9 @@ export function CodeEditor({ locale, files, activeFileId, diagnostics, checking,
   const errors = diagnostics?.filter((item) => item.severity === 'error').length ?? 0;
   const warnings = diagnostics?.filter((item) => item.severity === 'warning').length ?? 0;
   const labels = locale === 'tr'
-    ? { error: 'hata', warning: 'uyarı', reset: 'Bu adımı sıfırla', checking: 'Kontrol ediliyor…', check: 'Kodu kontrol et', fix: 'Nasıl düzeltilir', add: 'Yeni script', empty: 'Boş dosya. Kodu ilk karakterden itibaren sen yazacaksın.' }
-    : { error: 'error', warning: 'warning', reset: 'Reset this step', checking: 'Checking…', check: 'Check code', fix: 'How to fix', add: 'New script', empty: 'Empty file. You will write the code from the very first character.' };
+    ? { error: 'hata', warning: 'uyarı', reset: 'Bu adımı sıfırla', checking: 'Scriptler kontrol ediliyor…', check: 'Kodu kontrol et', fix: 'Nasıl düzeltilir', add: 'Yeni script', remove: 'Scripti sil', empty: 'Boş dosya. Kodu ilk karakterden itibaren sen yazacaksın.', clean: 'Bu scriptte sorun bulunmadı.' }
+    : { error: 'error', warning: 'warning', reset: 'Reset this step', checking: 'Checking scripts…', check: 'Check code', fix: 'How to fix', add: 'New script', remove: 'Delete script', empty: 'Empty file. You will write the code from the very first character.', clean: 'No problems were found in this script.' };
+  const fileGroups = files.map((file) => ({ file, items: diagnostics?.filter((item) => item.fileName === file.name) ?? [] }));
 
   const resetCursorState = () => {
     setCursor({ line: 1, column: 1 });
@@ -166,7 +168,7 @@ export function CodeEditor({ locale, files, activeFileId, diagnostics, checking,
     <section className="ide-shell" aria-label="C sharp kod editörü">
       <div className="ide-titlebar"><span className="ide-product">LEVELUP IDE</span><span>{activeFile?.name}</span><div><i /><i /><i /></div></div>
       <div className="ide-tabs" role="tablist" aria-label={locale === 'tr' ? 'Açık scriptler' : 'Open scripts'}>
-        <div className="ide-tab-strip">{files.map((file) => <button key={file.id} type="button" role="tab" aria-selected={file.id === activeFileId} className={file.id === activeFileId ? 'ide-tab active' : 'ide-tab'} onClick={() => { resetCursorState(); onSelectFile(file.id); }}><Icon name="code" />{file.name}{file.content && <i />}</button>)}</div>
+        <div className="ide-tab-strip">{files.map((file, index) => <div key={file.id} className={file.id === activeFileId ? 'ide-tab active' : 'ide-tab'}><button className="ide-tab-select" type="button" role="tab" aria-selected={file.id === activeFileId} onClick={() => { resetCursorState(); onSelectFile(file.id); }}><Icon name="code" />{file.name}{file.content && <i />}</button>{index > 0 && <button className="ide-tab-close" type="button" aria-label={`${file.name} · ${labels.remove}`} title={labels.remove} onClick={() => onDeleteFile(file.id)}><Icon name="close" /></button>}</div>)}</div>
         <button className="ide-add-tab" type="button" onClick={() => { resetCursorState(); onAddFile(); }} title={labels.add}><span>+</span>{labels.add}</button>
       </div>
       <div className="ide-editor-wrap">
@@ -178,7 +180,7 @@ export function CodeEditor({ locale, files, activeFileId, diagnostics, checking,
       </div>
       <div className="ide-statusbar"><span className={errors ? 'has-errors' : ''}>{errors} {labels.error}</span><span>{warnings} {labels.warning}</span><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: 4</span><span>UTF-8</span><span>C#</span></div>
       <div className="editor-actions"><button type="button" className="button button-secondary" onClick={onReset}>{labels.reset}</button><span className="shortcut">⌘/Ctrl + Enter</span><button type="button" className="button button-primary" onClick={onRun} disabled={checking}>{checking && <span className="spinner" />}{checking ? labels.checking : labels.check}<Icon name="arrow-right" /></button></div>
-      {diagnostics && <div className="problems-panel" aria-live="polite"><header><strong>Problems</strong><span>{errors} {labels.error} · {warnings} {labels.warning}</span></header><ul>{diagnostics.map((item) => <li key={`${item.fileName}-${item.id}`} className={item.severity}><button type="button" onClick={() => goToDiagnostic(item)} disabled={!item.line}><span><Icon name={item.severity === 'success' ? 'check' : item.severity === 'error' ? 'close' : 'code'} /></span><div><strong>{item.code} · {item.title}</strong><p>{item.explanation}</p>{item.severity !== 'success' && item.fix && <small>{labels.fix}: <TechnicalCode text={item.fix} /></small>}</div>{item.line && <em>{item.fileName ?? activeFile?.name} · {item.line}:{item.column ?? 1}</em>}</button></li>)}</ul></div>}
+      {diagnostics && <div className="problems-panel" aria-live="polite"><header><strong>Problems</strong><span>{files.length} script · {errors} {labels.error} · {warnings} {labels.warning}</span></header><div className="problem-file-list">{fileGroups.map(({ file, items }) => { const fileErrors = items.filter((item) => item.severity === 'error').length; const fileWarnings = items.filter((item) => item.severity === 'warning').length; return <section className="problem-file-group" key={file.id}><button type="button" className="problem-file-heading" onClick={() => onSelectFile(file.id)}><span><Icon name="code" /><strong>{file.name}</strong></span><em>{fileErrors} {labels.error} · {fileWarnings} {labels.warning}</em></button>{items.length ? <ul>{items.map((item) => <li key={`${item.fileName}-${item.id}`} className={item.severity}><button type="button" onClick={() => goToDiagnostic(item)} disabled={!item.line}><span><Icon name={item.severity === 'success' ? 'check' : item.severity === 'error' ? 'close' : 'code'} /></span><div><strong>{item.code} · {item.title}</strong><p>{item.explanation}</p>{item.severity !== 'success' && item.fix && <small>{labels.fix}: <TechnicalCode text={item.fix} /></small>}</div>{item.line && <em>{item.line}:{item.column ?? 1}</em>}</button></li>)}</ul> : <p className="problem-file-clean"><Icon name="check" />{labels.clean}</p>}</section>; })}</div></div>}
     </section>
   );
 }

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { CodeEditor, type CodeFile } from '../components/CodeEditor';
+import { LessonActivity } from '../components/LessonActivity';
 import type { CreateStudentInput, Locale, SessionUser, Student } from '../domain/models';
 import { coursePlan, getLesson, lessons, localize } from '../learning/course';
 import { type CodeDiagnostic, validateCSharpSyntax, validateLessonCode } from '../learning/codeValidation';
@@ -150,7 +151,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   const [adminView, setAdminView] = useState<AdminView>('overview');
   const [menuOpen, setMenuOpen] = useState(false);
   const [selectedLessonId, setSelectedLessonId] = useState('lesson-1');
-  const [activeStepId, setActiveStepId] = useState('l1-goal');
+  const [activeStepId, setActiveStepId] = useState('l1-brief');
   const isAdmin = session.role === 'admin';
   const inLesson = !isAdmin && studentView === 'lesson';
   const selectedLesson = getLesson(selectedLessonId);
@@ -416,6 +417,7 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
   const activeStepIndex = Math.max(0, lesson.steps.findIndex((step) => step.id === stepId));
   const activeStep = lesson.steps[activeStepIndex];
   const [checking, setChecking] = useState(false);
+  const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set());
   type StepWorkspace = { files: CodeFile[]; activeFileId: string; results: CodeDiagnostic[] | null };
   const makeWorkspace = (targetStepId: string): StepWorkspace => {
     const id = `${lesson.id}-${targetStepId}-primary`;
@@ -428,6 +430,7 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
   useEffect(() => {
     setWorkspaces(makeLessonWorkspaces());
     setChecking(false);
+    setCompletedSteps(new Set());
   }, [lesson.id]);
 
   const updateWorkspace = (update: (current: StepWorkspace) => StepWorkspace) => {
@@ -447,6 +450,9 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
     setChecking(false);
   };
   const passed = Boolean(workspace.results?.some((result) => result.severity === 'success')) && !workspace.results?.some((result) => result.severity !== 'success');
+  const activityKind = activeStep.activity;
+  const isCodeStep = !activityKind || activityKind === 'code';
+  const stepComplete = isCodeStep ? passed : completedSteps.has(activeStep.id);
   const progress = ((activeStepIndex + 1) / lesson.steps.length) * 100;
 
   return (
@@ -454,15 +460,15 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
       <button className="back-button" type="button" onClick={onBack}><Icon name="arrow-right" />{locale === 'tr' ? 'Ders planına dön' : 'Back to course plan'}</button>
       <div className="lesson-heading"><div><p className="section-kicker">{locale === 'tr' ? `Ders ${lesson.order} / 28 · Uygulama alanı` : `Lesson ${lesson.order} / 28 · Practice workspace`}</p><h1>{localize(lesson.title, locale)}</h1><p>{localize(lesson.summary, locale)}</p></div><div className="lesson-duration"><strong>{lesson.duration}</strong><small>{locale === 'tr' ? 'dakika' : 'minutes'}</small></div></div>
       <div className="lesson-stage-progress"><span><strong>{String(activeStepIndex + 1).padStart(2, '0')}</strong> / {String(lesson.steps.length).padStart(2, '0')}</span><div><i style={{ width: `${progress}%` }} /></div><small>{localize(activeStep.title, locale)}</small></div>
-      <div className="lesson-workbench">
+      <div className={isCodeStep ? 'lesson-workbench' : 'lesson-workbench activity-mode'}>
         <aside className="lesson-guidance">
           <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'practice' ? 'code' : activeStep.kind === 'reflect' ? 'repeat' : 'book'} /><span>{activeStep.duration} {locale === 'tr' ? 'dakika' : 'minutes'}</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki adım' : 'Current step'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul>{activeStep.details && <div className="lesson-detail-list">{localize(activeStep.details, locale).map((detail) => <article key={detail.title}><strong>{detail.title}</strong><TechnicalText text={detail.body} /></article>)}</div>}</section>
-          <section className="lesson-task-card"><p className="section-kicker">{locale === 'tr' ? 'Bu adımdaki kod görevi' : 'Coding task for this step'}</p><h3>{localize(activeStep.editorTitle ?? activeStep.title, locale)}</h3><TechnicalText text={localize(activeStep.editorTask ?? activeStep.description, locale)} /><div className="from-scratch-note"><Icon name="code" /><span>{locale === 'tr' ? 'Dosya bilinçli olarak boş açılır. Hazır iskeleti kopyalamadan, yapıyı adım adım sen kurarsın.' : 'The file deliberately opens blank. You build it step by step without copying a prepared skeleton.'}</span></div><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
-          {passed && <div className="lesson-success"><Icon name="check" /><p>{localize(lesson.successMessage, locale)}</p></div>}
+          {isCodeStep && <section className="lesson-task-card"><p className="section-kicker">{locale === 'tr' ? 'Bu adımdaki kod görevi' : 'Coding task for this step'}</p><h3>{localize(activeStep.editorTitle ?? activeStep.title, locale)}</h3><TechnicalText text={localize(activeStep.editorTask ?? activeStep.description, locale)} /><div className="from-scratch-note"><Icon name="code" /><span>{locale === 'tr' ? 'Dosya bilinçli olarak boş açılır. Hazır iskeleti kopyalamadan, yapıyı adım adım sen kurarsın.' : 'The file deliberately opens blank. You build it step by step without copying a prepared skeleton.'}</span></div><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>}
+          {isCodeStep && passed && <div className="lesson-success"><Icon name="check" /><p>{localize(lesson.successMessage, locale)}</p></div>}
         </aside>
-        <CodeEditor locale={locale} files={workspace.files} activeFileId={workspace.activeFileId} diagnostics={workspace.results} checking={checking} onSelectFile={(fileId) => updateWorkspace((value) => ({ ...value, activeFileId: fileId }))} onAddFile={() => updateWorkspace((value) => { const used = new Set(value.files.map((file) => file.name)); let number = 1; let name = 'NewScript.cs'; while (used.has(name)) { number += 1; name = `NewScript${number}.cs`; } const file = { id: `${activeStep.id}-${crypto.randomUUID()}`, name, content: '' }; return { ...value, files: [...value.files, file], activeFileId: file.id, results: null }; })} onChange={(fileId, content) => updateWorkspace((value) => ({ ...value, files: value.files.map((file) => file.id === fileId ? { ...file, content } : file), results: null }))} onRun={runChecks} onReset={() => setWorkspaces((current) => ({ ...current, [activeStep.id]: makeWorkspace(activeStep.id) }))} />
+        {isCodeStep ? <CodeEditor locale={locale} files={workspace.files} activeFileId={workspace.activeFileId} diagnostics={workspace.results} checking={checking} onSelectFile={(fileId) => updateWorkspace((value) => ({ ...value, activeFileId: fileId }))} onAddFile={() => updateWorkspace((value) => { const used = new Set(value.files.map((file) => file.name)); let number = 1; let name = 'NewScript.cs'; while (used.has(name)) { number += 1; name = `NewScript${number}.cs`; } const file = { id: `${activeStep.id}-${crypto.randomUUID()}`, name, content: '' }; return { ...value, files: [...value.files, file], activeFileId: file.id, results: null }; })} onDeleteFile={(fileId) => updateWorkspace((value) => { if (value.files.length === 1) return value; const index = value.files.findIndex((file) => file.id === fileId); const files = value.files.filter((file) => file.id !== fileId); const activeFileId = value.activeFileId === fileId ? files[Math.max(0, index - 1)]!.id : value.activeFileId; return { ...value, files, activeFileId, results: null }; })} onChange={(fileId, content) => updateWorkspace((value) => ({ ...value, files: value.files.map((file) => file.id === fileId ? { ...file, content } : file), results: null }))} onRun={runChecks} onReset={() => setWorkspaces((current) => ({ ...current, [activeStep.id]: makeWorkspace(activeStep.id) }))} /> : <LessonActivity key={activeStep.id} kind={activityKind} locale={locale} onComplete={() => setCompletedSteps((current) => new Set(current).add(activeStep.id))} />}
       </div>
-      <div className="lesson-step-actions"><button className="button button-secondary" type="button" disabled={activeStepIndex === 0} onClick={() => onStep(lesson.steps[activeStepIndex - 1].id)}><Icon name="arrow-right" />{locale === 'tr' ? 'Önceki adım' : 'Previous step'}</button><span>{activeStepIndex + 1} / {lesson.steps.length}</span><button className="button button-primary" type="button" disabled={activeStepIndex === lesson.steps.length - 1} onClick={() => onStep(lesson.steps[activeStepIndex + 1].id)}>{locale === 'tr' ? 'Sonraki adım' : 'Next step'}<Icon name="arrow-right" /></button></div>
+      <div className="lesson-step-actions"><button className="button button-secondary" type="button" disabled={activeStepIndex === 0} onClick={() => onStep(lesson.steps[activeStepIndex - 1].id)}><Icon name="arrow-right" />{locale === 'tr' ? 'Önceki adım' : 'Previous step'}</button><span>{activeStepIndex + 1} / {lesson.steps.length}{!stepComplete && ` · ${locale === 'tr' ? 'Etkinliği tamamla' : 'Complete the activity'}`}</span><button className="button button-primary" type="button" disabled={activeStepIndex === lesson.steps.length - 1 || !stepComplete} onClick={() => onStep(lesson.steps[activeStepIndex + 1].id)}>{locale === 'tr' ? 'Sonraki adım' : 'Next step'}<Icon name="arrow-right" /></button></div>
     </div>
   );
 }
