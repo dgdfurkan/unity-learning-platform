@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { CodeEditor } from '../components/CodeEditor';
+import { CodeEditor, type CodeFile } from '../components/CodeEditor';
 import type { CreateStudentInput, Locale, SessionUser, Student } from '../domain/models';
 import { coursePlan, getLesson, lessons, localize } from '../learning/course';
-import { type CodeDiagnostic, validateLessonCode } from '../learning/codeValidation';
+import { type CodeDiagnostic, validateCSharpSyntax, validateLessonCode } from '../learning/codeValidation';
 import { dataGateway } from '../services/demoGateway';
 import { Icon } from '../shared/Icon';
 import { type MessageKey, translate } from '../shared/i18n';
@@ -415,22 +415,38 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
   const lesson = getLesson(lessonId);
   const activeStepIndex = Math.max(0, lesson.steps.findIndex((step) => step.id === stepId));
   const activeStep = lesson.steps[activeStepIndex];
-  const [code, setCode] = useState(lesson.starterCode);
   const [checking, setChecking] = useState(false);
-  const [results, setResults] = useState<CodeDiagnostic[] | null>(null);
+  type StepWorkspace = { files: CodeFile[]; activeFileId: string; results: CodeDiagnostic[] | null };
+  const makeWorkspace = (targetStepId: string): StepWorkspace => {
+    const id = `${lesson.id}-${targetStepId}-primary`;
+    return { files: [{ id, name: lesson.fileName, content: '' }], activeFileId: id, results: null };
+  };
+  const makeLessonWorkspaces = () => Object.fromEntries(lesson.steps.map((step) => [step.id, makeWorkspace(step.id)]));
+  const [workspaces, setWorkspaces] = useState<Record<string, StepWorkspace>>(makeLessonWorkspaces);
+  const workspace = workspaces[activeStep.id] ?? makeWorkspace(activeStep.id);
 
   useEffect(() => {
-    setCode(lesson.starterCode);
-    setResults(null);
-  }, [lesson.id, lesson.starterCode]);
+    setWorkspaces(makeLessonWorkspaces());
+    setChecking(false);
+  }, [lesson.id]);
+
+  const updateWorkspace = (update: (current: StepWorkspace) => StepWorkspace) => {
+    setWorkspaces((current) => ({ ...current, [activeStep.id]: update(current[activeStep.id] ?? makeWorkspace(activeStep.id)) }));
+  };
 
   const runChecks = async () => {
     setChecking(true);
     await new Promise((resolve) => window.setTimeout(resolve, 460));
-    setResults(validateLessonCode(lesson.id, code));
+    const current = workspaces[activeStep.id] ?? makeWorkspace(activeStep.id);
+    const primary = current.files[0];
+    const results = [
+      ...validateLessonCode(lesson.id, primary.content, activeStep.id, primary.name),
+      ...current.files.slice(1).flatMap((file) => validateCSharpSyntax(file.content, file.name)),
+    ];
+    updateWorkspace((value) => ({ ...value, results }));
     setChecking(false);
   };
-  const passed = Boolean(results?.length) && !results?.some((result) => result.severity === 'error');
+  const passed = Boolean(workspace.results?.some((result) => result.severity === 'success')) && !workspace.results?.some((result) => result.severity === 'error');
   const progress = ((activeStepIndex + 1) / lesson.steps.length) * 100;
 
   return (
@@ -440,11 +456,11 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
       <div className="lesson-stage-progress"><span><strong>{String(activeStepIndex + 1).padStart(2, '0')}</strong> / {String(lesson.steps.length).padStart(2, '0')}</span><div><i style={{ width: `${progress}%` }} /></div><small>{localize(activeStep.title, locale)}</small></div>
       <div className="lesson-workbench">
         <aside className="lesson-guidance">
-          <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'practice' ? 'code' : activeStep.kind === 'reflect' ? 'repeat' : 'book'} /><span>{activeStep.duration} {locale === 'tr' ? 'dakika' : 'minutes'}</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki adım' : 'Current step'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul></section>
-          <section className="lesson-task-card"><p className="section-kicker">{locale === 'tr' ? 'Kod görevi' : 'Coding task'}</p><h3>{localize(lesson.taskTitle, locale)}</h3><TechnicalText text={localize(lesson.taskBody, locale)} /><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
+          <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'practice' ? 'code' : activeStep.kind === 'reflect' ? 'repeat' : 'book'} /><span>{activeStep.duration} {locale === 'tr' ? 'dakika' : 'minutes'}</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki adım' : 'Current step'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul>{activeStep.details && <div className="lesson-detail-list">{localize(activeStep.details, locale).map((detail) => <article key={detail.title}><strong>{detail.title}</strong><TechnicalText text={detail.body} /></article>)}</div>}</section>
+          <section className="lesson-task-card"><p className="section-kicker">{locale === 'tr' ? 'Bu adımdaki kod görevi' : 'Coding task for this step'}</p><h3>{localize(activeStep.editorTitle ?? activeStep.title, locale)}</h3><TechnicalText text={localize(activeStep.editorTask ?? activeStep.description, locale)} /><div className="from-scratch-note"><Icon name="code" /><span>{locale === 'tr' ? 'Dosya bilinçli olarak boş açılır. Hazır iskeleti kopyalamadan, yapıyı adım adım sen kurarsın.' : 'The file deliberately opens blank. You build it step by step without copying a prepared skeleton.'}</span></div><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
           {passed && <div className="lesson-success"><Icon name="check" /><p>{localize(lesson.successMessage, locale)}</p></div>}
         </aside>
-        <CodeEditor locale={locale} fileName={lesson.fileName} value={code} diagnostics={results} checking={checking} onChange={(next) => { setCode(next); setResults(null); }} onRun={runChecks} onReset={() => { setCode(lesson.starterCode); setResults(null); }} />
+        <CodeEditor locale={locale} files={workspace.files} activeFileId={workspace.activeFileId} diagnostics={workspace.results} checking={checking} onSelectFile={(fileId) => updateWorkspace((value) => ({ ...value, activeFileId: fileId }))} onAddFile={() => updateWorkspace((value) => { const used = new Set(value.files.map((file) => file.name)); let number = 1; let name = 'NewScript.cs'; while (used.has(name)) { number += 1; name = `NewScript${number}.cs`; } const file = { id: `${activeStep.id}-${crypto.randomUUID()}`, name, content: '' }; return { ...value, files: [...value.files, file], activeFileId: file.id, results: null }; })} onChange={(fileId, content) => updateWorkspace((value) => ({ ...value, files: value.files.map((file) => file.id === fileId ? { ...file, content } : file), results: null }))} onRun={runChecks} onReset={() => setWorkspaces((current) => ({ ...current, [activeStep.id]: makeWorkspace(activeStep.id) }))} />
       </div>
       <div className="lesson-step-actions"><button className="button button-secondary" type="button" disabled={activeStepIndex === 0} onClick={() => onStep(lesson.steps[activeStepIndex - 1].id)}><Icon name="arrow-right" />{locale === 'tr' ? 'Önceki adım' : 'Previous step'}</button><span>{activeStepIndex + 1} / {lesson.steps.length}</span><button className="button button-primary" type="button" disabled={activeStepIndex === lesson.steps.length - 1} onClick={() => onStep(lesson.steps[activeStepIndex + 1].id)}>{locale === 'tr' ? 'Sonraki adım' : 'Next step'}<Icon name="arrow-right" /></button></div>
     </div>

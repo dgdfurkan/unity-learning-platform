@@ -9,6 +9,9 @@ export interface LessonStep {
   title: Record<Locale, string>;
   description: Record<Locale, string>;
   bullets: Record<Locale, string[]>;
+  editorTitle?: Record<Locale, string>;
+  editorTask?: Record<Locale, string>;
+  details?: Record<Locale, { title: string; body: string }[]>;
 }
 
 export interface Lesson {
@@ -47,13 +50,103 @@ export const lessons: Lesson[] = [
     taskBody: text('`FirstScript` sınıfını `MonoBehaviour` sınıfından türet, `Start` metodunu doğru yaz ve `Debug.Log("Unity hazır");` satırını metodun içine yerleştir.', 'Derive `FirstScript` from `MonoBehaviour`, declare `Start` correctly, and place `Debug.Log("Unity ready");` inside the method.'),
     successMessage: text('Script yapısı doğru. Artık Unity’nin bu kodu ne zaman çağırdığını açıklayabilirsin.', 'The script structure is correct. You can now explain when Unity calls this code.'),
     concepts: ['class', 'MonoBehaviour', 'Start', 'Debug.Log', 'Console'],
-    starterCode: `using UnityEngine;\n\npublic class FirstScript : MonoBehaviour\n{\n    void Start()\n    {\n        // İlk mesajını buraya yaz.\n    }\n}`,
+    starterCode: '',
     steps: [
-      { id: 'l1-goal', kind: 'prepare', duration: 5, title: text('Ders hedefi', 'Lesson goal'), description: text('Bugün ezber değil, Unity ile C# arasındaki çağrı zincirini kuruyoruz.', 'Today we build the call chain between Unity and C# instead of memorising syntax.'), bullets: list(['Script, GameObject ve Component ilişkisini söyleyebilmek', 'Console çıktısının neden ve ne zaman oluştuğunu tahmin etmek'], ['Explain the Script, GameObject, and Component relationship', 'Predict why and when Console output appears']) },
-      { id: 'l1-anatomy', kind: 'learn', duration: 15, title: text('Bir scriptin anatomisi', 'Anatomy of a script'), description: text('`using`, `class`, kalıtım, süslü parantez ve metod bloklarını gerçek görevleri üzerinden ayır.', 'Separate `using`, `class`, inheritance, braces, and method blocks by their actual responsibilities.'), bullets: list(['Dosya adı ile sınıf adının eşleşmesi', '`MonoBehaviour` sayesinde Unity yaşam döngüsüne katılma', 'Scope: hangi kodun hangi bloğa ait olduğu'], ['Matching the file name and class name', 'Joining the Unity lifecycle through `MonoBehaviour`', 'Scope: which code belongs to which block']) },
-      { id: 'l1-console', kind: 'observe', duration: 10, title: text('Editor ve Console gözlemi', 'Editor and Console observation'), description: text('Script Component olarak eklenir, Play Mode başlatılır ve `Start` çağrısının tek seferlik sonucu izlenir.', 'Attach the script as a Component, enter Play Mode, and observe the one-time result of `Start`.'), bullets: list(['Console satırından script ve satır numarasına dönmek', 'Compile error varken Play Mode davranışını okumak'], ['Navigate from a Console entry to its script and line', 'Read Play Mode behaviour while compile errors exist']) },
-      { id: 'l1-code', kind: 'practice', duration: 20, title: text('Kontrollü kod uygulaması', 'Guided coding practice'), description: text('Eksik satırı tamamla; sonra mesajı değiştirerek çıktı ile kaynak kod arasındaki ilişkiyi doğrula.', 'Complete the missing line, then change the message to verify the relationship between source code and output.'), bullets: list(['Büyük/küçük harf duyarlılığını koru', 'Parantez, tırnak ve noktalı virgülü birlikte kontrol et'], ['Preserve case sensitivity', 'Check parentheses, quotes, and the semicolon together']) },
-      { id: 'l1-recap', kind: 'reflect', duration: 10, title: text('Açıkla ve geri çağır', 'Explain and recall'), description: text('Koda bakmadan `Start` ile `Debug.Log` ilişkisini kendi cümlelerinle anlat.', 'Without looking at the code, explain the relationship between `Start` and `Debug.Log` in your own words.'), bullets: list(['“Bu satır neden çalıştı?” sorusuna cevap ver', 'Bir sözdizimi hatasını Console’dan bul'], ['Answer “Why did this line run?”', 'Locate one syntax error from the Console']) },
+      {
+        id: 'l1-goal', kind: 'prepare', duration: 5, title: text('Ders hedefi ve zihinsel model', 'Lesson goal and mental model'),
+        description: text('Önce kodun Unity içindeki yolculuğunu kur: dosya yazılır, C# derlenir, sınıf Component olur ve Unity uygun callback’i çağırır.', 'First build the journey of code inside Unity: a file is written, C# compiles it, the class becomes a Component, and Unity calls the relevant callback.'),
+        bullets: list(['Script bir metin dosyasıdır; çalışan şey derlenmiş sınıfın örneğidir', 'GameObject taşıyıcıdır, Component ona veri veya davranış ekler', 'Derleme hatası varsa Unity yeni kodu çalıştıramaz'], ['A script is a text file; the compiled class instance is what runs', 'A GameObject is a container; Components add data or behaviour', 'Unity cannot run new code while compilation errors exist']),
+        editorTitle: text('İlk bağımlılığı kendin yaz', 'Write the first dependency yourself'),
+        editorTask: text('Boş `FirstScript.cs` dosyasına yalnızca `using UnityEngine;` yaz. `using` bir kodu çalıştırmaz; namespace içindeki türleri kısa adlarıyla kullanabilmeni sağlar. Kontrolü çalıştır ve bu satırın neyi mümkün kıldığını sözlü olarak açıkla.', 'Write only `using UnityEngine;` in the empty `FirstScript.cs` file. A `using` directive does not execute code; it lets you use types from a namespace by their short names. Run the check and explain what this line enables.'),
+        details: {
+          tr: [
+            { title: 'Script nedir?', body: '`.cs` uzantılı kaynak kod dosyasıdır. Dosyanın kendisi sahnede yaşamaz; içindeki sınıf derlenir ve bir GameObject’e Component olarak eklenebilir.' },
+            { title: 'Derleme ne yapar?', body: 'Yazdığın metni C# kurallarına göre inceler. Geçersiz bir cümle, eksik `;` veya kapanmayan `{` varsa çalıştırılabilir kod üretmez.' },
+            { title: '`using` ne değildir?', body: 'Bir nesne oluşturmaz ve her frame çalışmaz. Yalnızca `UnityEngine.MonoBehaviour` yerine `MonoBehaviour` yazabilmek için isim çözümlemesini kolaylaştırır.' },
+          ],
+          en: [
+            { title: 'What is a script?', body: 'It is a `.cs` source file. The file itself does not live in the scene; its class is compiled and can be attached to a GameObject as a Component.' },
+            { title: 'What does compilation do?', body: 'It checks your text against C# rules. A plain sentence, missing `;`, or unclosed `{` prevents executable code from being produced.' },
+            { title: 'What is `using` not?', body: 'It does not create an object or run every frame. It simplifies name resolution so you can write `MonoBehaviour` instead of `UnityEngine.MonoBehaviour`.' },
+          ],
+        },
+      },
+      {
+        id: 'l1-anatomy', kind: 'learn', duration: 15, title: text('Bir scriptin anatomisi', 'Anatomy of a script'),
+        description: text('`using`, erişim belirleyici, `class`, kalıtım, dosya adı ve scope kavramlarını tek tek kur; hazır iskelet kullanma.', 'Build `using`, access modifier, `class`, inheritance, file naming, and scope one by one without a prepared skeleton.'),
+        bullets: list(['`public class FirstScript` yeni bir tür tanımlar', '`:` işareti “şundan türetilir” ilişkisini kurar', '`MonoBehaviour` Unity mesajlarını alabilmenin temelidir', 'Dosya adı `FirstScript.cs`, sınıf adı `FirstScript` olmalıdır'], ['`public class FirstScript` defines a new type', '`:` establishes an “inherits from” relationship', '`MonoBehaviour` enables Unity messages', 'File name `FirstScript.cs` must match class name `FirstScript`']),
+        editorTitle: text('Sınıf gövdesini sıfırdan kur', 'Build the class body from scratch'),
+        editorTask: text('Boş dosyaya önce `using UnityEngine;`, ardından `public class FirstScript : MonoBehaviour` bildirimi ve sınıfa ait `{ }` bloğunu kendin yaz. Henüz metod ekleme. Dosya-sınıf eşleşmesini ve her sembolün görevini öğretmenine açıkla.', 'Write `using UnityEngine;`, then `public class FirstScript : MonoBehaviour` and its `{ }` block in the empty file. Do not add a method yet. Explain the file-class match and each symbol to your instructor.'),
+        details: {
+          tr: [
+            { title: '`public`', body: 'Sınıfın başka kodlar ve Unity tarafından görülebilmesini sağlayan erişim belirleyicisidir. Her şeyi `public` yapmak iyi tasarım değildir; burada ana türü tanımlıyoruz.' },
+            { title: '`class` ve nesne', body: '`class` bir şablondur; sahnedeki Component ise bu şablondan oluşturulan örnektir. Aynı script birden fazla GameObject’e eklenirse ayrı örnekler oluşur.' },
+            { title: '`MonoBehaviour`', body: 'Sınıfa Unity Component davranışı kazandırır. `Start`, `Awake` ve `Update` gibi callback’lerin Unity tarafından tanınacağı bağlamı sağlar.' },
+            { title: 'Scope ve `{ }`', body: 'Süslü parantezler bir bloğun sınırlarını belirler. Metot sınıfın içinde, çalışacak komut ise metodun içinde bulunmalıdır.' },
+          ],
+          en: [
+            { title: '`public`', body: 'An access modifier that makes the class visible to Unity and other code. Making everything public is not good design; here it exposes the main type.' },
+            { title: '`class` and object', body: 'A `class` is a blueprint; the Component in a scene is an instance. Attaching the same script to multiple GameObjects creates separate instances.' },
+            { title: '`MonoBehaviour`', body: 'It gives the class Unity Component behaviour and the context in which callbacks such as `Start`, `Awake`, and `Update` are recognised.' },
+            { title: 'Scope and `{ }`', body: 'Braces define block boundaries. A method belongs inside the class, and executable statements belong inside the method.' },
+          ],
+        },
+      },
+      {
+        id: 'l1-console', kind: 'observe', duration: 10, title: text('Metot, callback ve Console', 'Method, callback, and Console'),
+        description: text('Metot sözdizimini kur, `Start` adının neden sıradan bir ad olmadığını gör ve gözlemlenebilir bir çıktı üret.', 'Build method syntax, see why `Start` is not an arbitrary name, and produce observable output.'),
+        bullets: list(['`void`: geri dönüş değeri yok', '`Start()`: Unity’nin doğru yazımda bir kez çağırdığı callback', '`Debug.Log`: geliştiriciye Console çıktısı gönderir', 'Metin değeri çift tırnak içinde, komut `;` ile biter'], ['`void`: no return value', '`Start()`: a callback Unity calls once when spelled correctly', '`Debug.Log`: sends developer output to the Console', 'Text goes in double quotes and the statement ends with `;`']),
+        editorTitle: text('Çalışma anını görünür yap', 'Make execution visible'),
+        editorTask: text('Boş dosyada `using UnityEngine;` ile başla. `FirstScript : MonoBehaviour` sınıfını ve içine `void Start()` metodunu kur. Metodun içinde `Debug.Log("Unity hazır");` yaz. Sonra mesajı değiştirip kaynak kod ile çıktı arasındaki bağı doğrula.', 'Start with `using UnityEngine;` in the empty file. Build the `FirstScript : MonoBehaviour` class and a `void Start()` method. Write `Debug.Log("Unity ready");` inside it, then change the message to verify the connection between source and output.'),
+        details: {
+          tr: [
+            { title: 'Metot nedir?', body: 'Adlandırılmış bir davranış bloğudur. `void` dönüş türünü, `Start` adı, `()` parametre alanını ve `{ }` gövdeyi ifade eder.' },
+            { title: 'Callback nedir?', body: 'Senin doğrudan çağırmadığın, belirli bir olayda Unity’nin çağırdığı metottur. `awake` derlenebilir ama Unity onu `Awake` callback’i olarak çağırmaz.' },
+            { title: 'Console neden önemlidir?', body: 'Oyuncuya gösterilen UI değildir. Kodun hangi sırada ve hangi değerle çalıştığını geliştiricinin gözlemlemesini sağlar.' },
+          ],
+          en: [
+            { title: 'What is a method?', body: 'A named behaviour block. `void` is the return type, `Start` the name, `()` the parameter list, and `{ }` the body.' },
+            { title: 'What is a callback?', body: 'A method Unity calls for you when a particular event occurs. `awake` can compile, but Unity will not invoke it as the `Awake` callback.' },
+            { title: 'Why does the Console matter?', body: 'It is not player UI. It lets a developer observe when code runs and which values it produces.' },
+          ],
+        },
+      },
+      {
+        id: 'l1-code', kind: 'practice', duration: 20, title: text('Sıfırdan yaz, boz ve onar', 'Write, break, and repair from scratch'),
+        description: text('Tam scripti boş dosyada kur; ardından kontrollü hatalar üretip Problems panelindeki neden-sonuç ilişkisini kullanarak düzelt.', 'Build the full script in an empty file, then create controlled errors and repair them using the cause-and-effect information in the Problems panel.'),
+        bullets: list(['Önce düz Türkçe bir cümleyi kod bloğuna yaz ve tanıyı oku', '`Start` adını `start` veya `awake` yaparak callback uyarısını karşılaştır', 'Bir `;` ve bir `}` sil; hata satırına tıklayıp sarı vurguyu izle', 'Son durumda kodu tamamen derlenebilir hâle getir'], ['Write a plain sentence in the code block and read the diagnostic', 'Change `Start` to `start` or `awake` and compare callback warnings', 'Remove one `;` and one `}`; click the problem and observe the yellow line', 'Finish with fully compilable code']),
+        editorTitle: text('Bağımsız uygulama: FirstScript.cs', 'Independent practice: FirstScript.cs'),
+        editorTask: text('Hiçbir hazır satır kullanmadan `using`, `class`, `MonoBehaviour`, `Start` ve `Debug.Log` yapısını oluştur. Her kontrollü hatada önce sonucu tahmin et, sonra kontrolü çalıştır, hata kodunu ve satırını oku, son olarak düzelt.', 'Without prepared lines, build the `using`, `class`, `MonoBehaviour`, `Start`, and `Debug.Log` structure. For each controlled error, predict the result, run the check, read the error code and line, then fix it.'),
+        details: {
+          tr: [
+            { title: 'Hata laboratuvarı', body: '`İlk mesajını buraya yaz.` ifadesi comment veya string olmadığı için C# komutu değildir. `//` ile açıklama ya da `Debug.Log("...");` ile çıktı olmalıdır.' },
+            { title: 'Büyük/küçük harf', body: 'C# ve Unity callback adları case-sensitive çalışır. `Awake` ile `awake`, `packageCount` ile `packagecount` aynı sembol değildir.' },
+            { title: 'Okuma sırası', body: 'Önce dosya ve `satır:sütun`, sonra hata kodu, ardından açıklama ve düzeltme önerisi okunur. Mesaja göre kod değiştirilir; rastgele deneme yapılmaz.' },
+          ],
+          en: [
+            { title: 'Error laboratory', body: '`Write your first message here.` is not a C# statement unless it is a comment or string. Use `//` for an explanation or `Debug.Log("...");` for output.' },
+            { title: 'Letter casing', body: 'C# identifiers and Unity callbacks are case-sensitive. `Awake` and `awake`, or `packageCount` and `packagecount`, are not the same symbol.' },
+            { title: 'Reading order', body: 'Read file and `line:column`, then the code, explanation, and suggested repair. Change code based on evidence instead of guessing.' },
+          ],
+        },
+      },
+      {
+        id: 'l1-recap', kind: 'reflect', duration: 10, title: text('Geri çağır, açıkla ve ikinci dosyayı dene', 'Recall, explain, and try a second file'),
+        description: text('Koda bakmadan yapıyı yeniden üret; ardından yeni script sekmesi açarak bir dosyanın kendi sınıfına sahip olduğunu gör.', 'Recreate the structure without looking, then open a new script tab to see that each file owns its class.'),
+        bullets: list(['Her satırı “neden var?” sorusuyla açıkla', 'Yeni script düğmesiyle boş `NewScript.cs` aç', 'Dosya-sınıf adı eşleşmezse Unity uyarısını incele', 'Yanlışını düzeltip ilk script sekmesine geri dön'], ['Explain every line by answering “why is it here?”', 'Open a blank `NewScript.cs` with the new script button', 'Inspect the Unity warning when file and class names differ', 'Fix it and return to the first script tab']),
+        editorTitle: text('Koda bakmadan yeniden kur', 'Rebuild without looking'),
+        editorTask: text('Boş `FirstScript.cs` dosyasında çalışan yapıyı hafızadan yeniden yaz. Sonra “Yeni script” ile ikinci dosyayı aç; içine `public class NewScript : MonoBehaviour` yapısını kur. İki sekme arasında geçiş yap ve dosyaların içeriğinin bağımsız kaldığını doğrula.', 'Rebuild the working structure from memory in the blank `FirstScript.cs`. Then open a second file with “New script” and build `public class NewScript : MonoBehaviour`. Switch between tabs and verify that their contents remain independent.'),
+        details: {
+          tr: [
+            { title: 'Başarı ölçütü', body: 'Kodun yalnızca yeşil sonuç vermesi yetmez. `using`, sınıf, kalıtım, callback ve komut scope’unu doğru teknik kelimelerle açıklayabilmelisin.' },
+            { title: 'İkinci script neden var?', body: 'İleride scriptler arası iletişim kurarken her sorumluluk ayrı sınıfta yaşayacak. Sekmeler bu zihinsel modeli şimdiden görünür kılar.' },
+          ],
+          en: [
+            { title: 'Success criterion', body: 'A green result is not enough. You must explain `using`, class, inheritance, callback, statement, and scope with accurate technical terms.' },
+            { title: 'Why a second script?', body: 'Later, communication between scripts will keep responsibilities in separate classes. Tabs make that model visible now.' },
+          ],
+        },
+      },
     ],
   },
   {
@@ -64,7 +157,7 @@ export const lessons: Lesson[] = [
     taskBody: text('`packageCount`, `isGameActive` ve `playerName` değişkenlerini istenen türlerde tanımla. Ardından `Debug.Log(packageCount);` ile aynı değişkeni yazdır. `packagecount` ile `packageCount` C# için aynı isim değildir.', 'Declare `packageCount`, `isGameActive`, and `playerName` with the requested types. Then print the exact same variable using `Debug.Log(packageCount);`. In C#, `packagecount` and `packageCount` are different identifiers.'),
     successMessage: text('Türler ve isimler birbiriyle tutarlı. Değerler artık güvenle okunabilir.', 'Types and identifiers are consistent. The values can now be read safely.'),
     concepts: ['int', 'bool', 'string', 'camelCase', 'identifier'],
-    starterCode: `using UnityEngine;\n\npublic class PlayerState : MonoBehaviour\n{\n    // Değişkenleri burada tanımla.\n\n    void Start()\n    {\n        // packageCount değerini Console'a yazdır.\n    }\n}`,
+    starterCode: '',
     steps: [
       { id: 'l2-recall', kind: 'prepare', duration: 5, title: text('Ön bilgiyi geri çağır', 'Recall prior knowledge'), description: text('Bir önceki dersten sınıf, metod ve Console akışını kısa bir sözlü tekrar ile kur.', 'Rebuild the class, method, and Console flow from the previous lesson in a short verbal recall.'), bullets: list(['`Start` ne zaman çalışır?', '`Debug.Log` hangi probleme cevap verir?'], ['When does `Start` run?', 'What problem does `Debug.Log` answer?']) },
       { id: 'l2-types', kind: 'learn', duration: 15, title: text('Değer ve tür ayrımı', 'Values and types'), description: text('Bir değerin bellekte neyi temsil ettiğini ve yanlış tür seçiminin oyundaki etkisini karşılaştır.', 'Compare what a value represents in memory and how a wrong type affects the game.'), bullets: list(['`int`: adet ve tam sayı', '`bool`: iki durumlu karar', '`string`: oyuncuya veya geliştiriciye gösterilen metin'], ['`int`: counts and whole numbers', '`bool`: two-state decisions', '`string`: text shown to players or developers']) },
@@ -81,7 +174,7 @@ export const lessons: Lesson[] = [
     taskBody: text('`lives` değerini `int` olarak tanımla. `lives > 0` olduğunda “Devam”, aksi durumda “Oyun bitti” mesajını yazdıran `if/else` yapısını kur.', 'Declare `lives` as an `int`. Build an `if/else` statement that prints “Continue” when `lives > 0` and “Game over” otherwise.'),
     successMessage: text('Koşul iki olası yolu da kapsıyor ve oyun durumu doğru okunuyor.', 'The condition covers both possible paths and reads the game state correctly.'),
     concepts: ['if', 'else', '>', '==', '!', 'bool'],
-    starterCode: `using UnityEngine;\n\npublic class GameDecision : MonoBehaviour\n{\n    private int lives = 3;\n\n    void Start()\n    {\n        // lives değerine göre karar ver.\n    }\n}`,
+    starterCode: '',
     steps: [
       { id: 'l3-recall', kind: 'prepare', duration: 5, title: text('Türleri geri çağır', 'Recall the types'), description: text('Bir koşulun neden `bool` sonuç ürettiğini değişken bilgisiyle ilişkilendir.', 'Relate variable knowledge to why a condition produces a `bool` result.'), bullets: list(['`lives > 0` ifadesinin sonucu nedir?', '`!` operatörü hangi değeri tersine çevirir?'], ['What is the result of `lives > 0`?', 'Which value does the `!` operator invert?']) },
       { id: 'l3-operators', kind: 'learn', duration: 15, title: text('Karşılaştırma ve mantık operatörleri', 'Comparison and logical operators'), description: text('`=`, `==`, `!=`, `>`, `<`, `&&`, `||` ifadelerini görevlerine göre ayır.', 'Separate `=`, `==`, `!=`, `>`, `<`, `&&`, and `||` by responsibility.'), bullets: list(['Atama ile karşılaştırmayı karıştırmamak', 'Birden fazla koşulu okunabilir biçimde birleştirmek'], ['Do not confuse assignment with comparison', 'Combine multiple conditions readably']) },
@@ -98,7 +191,7 @@ export const lessons: Lesson[] = [
     taskBody: text('`Awake`, `OnEnable` ve `Start` metodlarını ekle; her birinin içine metodun adını yazdıran bir `Debug.Log` koy. Sürekli fizik kuvvetini `FixedUpdate`, kamera takibini `LateUpdate` ile ilişkilendir.', 'Add `Awake`, `OnEnable`, and `Start`, each with a `Debug.Log` containing its method name. Associate continuous physics forces with `FixedUpdate` and camera follow with `LateUpdate`.'),
     successMessage: text('Başlangıç sırası görünür ve metod sorumlulukları doğru ayrılmış.', 'The startup order is visible and method responsibilities are separated correctly.'),
     concepts: ['Awake', 'OnEnable', 'Start', 'Update', 'FixedUpdate', 'LateUpdate'],
-    starterCode: `using UnityEngine;\n\npublic class LifecycleProbe : MonoBehaviour\n{\n    // Awake, OnEnable ve Start metodlarını ekle.\n}`,
+    starterCode: '',
     steps: [
       { id: 'l4-recall', kind: 'prepare', duration: 5, title: text('Metod yapısını geri çağır', 'Recall method structure'), description: text('Bir metodun adı, parantezleri, dönüş türü ve gövdesini ayırt et.', 'Identify a method name, parentheses, return type, and body.'), bullets: list(['`void` neyi ifade eder?', 'Scope hangi süslü parantezlerde biter?'], ['What does `void` mean?', 'At which brace does the scope end?']) },
       { id: 'l4-order', kind: 'learn', duration: 15, title: text('Başlatma sırası', 'Initialisation order'), description: text('Referans kurma, etkinleşme ve ilk oyun karesi hazırlığını farklı metodlara dağıt.', 'Distribute reference setup, enable-time work, and first-frame preparation across different methods.'), bullets: list(['`Awake`: nesnenin kendi iç hazırlığı', '`OnEnable`: her etkinleşmede abonelik', '`Start`: ilk aktif kare öncesi başlangıç'], ['`Awake`: internal object setup', '`OnEnable`: subscriptions on every enable', '`Start`: initial setup before the first active frame']) },
@@ -115,7 +208,7 @@ export const lessons: Lesson[] = [
     taskBody: text('`playerRigidbody` alanını `[SerializeField] private Rigidbody` olarak tanımla. `OnTriggerEnter(Collider other)` metodunda temas eden nesnenin adını `Debug.Log(other.name);` ile yazdır.', 'Declare `playerRigidbody` as a `[SerializeField] private Rigidbody` field. In `OnTriggerEnter(Collider other)`, print the contacting object name with `Debug.Log(other.name);`.'),
     successMessage: text('Component referansı ve trigger callback’i doğru kuruldu. İlk beş dersin kavramları tek davranışta birleşti.', 'The Component reference and trigger callback are correct. Concepts from the first five lessons now work together.'),
     concepts: ['GameObject', 'Component', 'Transform', 'Rigidbody', 'Collider', 'OnTriggerEnter', 'SerializeField'],
-    starterCode: `using UnityEngine;\n\npublic class PlayerContact : MonoBehaviour\n{\n    // Rigidbody referansını Inspector'dan al.\n\n    // Trigger temasını burada yakala.\n}`,
+    starterCode: '',
     steps: [
       { id: 'l5-recall', kind: 'prepare', duration: 10, title: text('Aralıklı tekrar turu', 'Spaced recall round'), description: text('İlk dört dersten seçilen kısa soruları koda bakmadan cevapla.', 'Answer selected questions from the first four lessons without looking at code.'), bullets: list(['Tür ile değer farkı', '`if` sonucu ve scope', '`Start` ile `Update` farkı', 'Case-sensitive bir hata örneği'], ['Type versus value', '`if` result and scope', '`Start` versus `Update`', 'One case-sensitive error example']) },
       { id: 'l5-components', kind: 'learn', duration: 15, title: text('Unity nesne modeli', 'Unity object model'), description: text('GameObject’i bir taşıyıcı, Component’leri davranış ve veri parçaları olarak oku.', 'Read a GameObject as a container and Components as pieces of data and behaviour.'), bullets: list(['Her GameObject’te `Transform` bulunur', '`Rigidbody` fizik hareketini yönetir', '`Collider` fiziksel sınırı veya trigger alanını tanımlar'], ['Every GameObject has a `Transform`', '`Rigidbody` manages physics motion', '`Collider` defines a physical boundary or trigger volume']) },

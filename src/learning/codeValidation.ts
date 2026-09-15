@@ -9,6 +9,7 @@ export interface CodeDiagnostic {
   fix?: string;
   line?: number;
   column?: number;
+  fileName?: string;
 }
 
 const locationOf = (source: string, search: string): { line: number; column: number } | undefined => {
@@ -74,6 +75,12 @@ function structuralDiagnostics(source: string): CodeDiagnostic[] {
     if (declarationWithoutSemicolon || logWithoutSemicolon) {
       results.push(diagnostic({ severity: 'error', code: 'CS1002', title: 'Noktalı virgül bekleniyor', explanation: 'C# bu ifadeyi bitmiş bir komut olarak okuyabilmek için satır sonunda `;` bekler.', fix: 'İfadenin sonuna `;` ekle.', line: index + 1, column: rawLine.length + 1 }));
     }
+    const withoutStrings = line.replace(/"(?:\\.|[^"\\])*"/g, '""');
+    const looksLikePlainSentence = /^[A-Za-zÇĞİÖŞÜçğıöşü]+\s+.+[.!?]$/.test(withoutStrings)
+      && !/^(?:return|throw|new)\b/.test(withoutStrings);
+    if (looksLikePlainSentence) {
+      results.push(diagnostic({ severity: 'error', code: 'CS1525', title: 'Kod bloğuna düz metin yazılmış', explanation: `\`${line}\` C# komutu değildir. Açıklama yazmak istiyorsan satırı \`//\` ile comment yapmalı; Console’a mesaj göndermek istiyorsan metni \`Debug.Log("...");\` içine almalısın.`, fix: `Comment için \`// ${line}\` veya çıktı için \`Debug.Log("${line.replace(/"/g, '')}");\` kullan.`, line: index + 1, column: rawLine.search(/\S/) + 1 }));
+    }
   });
   return results;
 }
@@ -117,15 +124,45 @@ function identifierDiagnostics(source: string, expectedIdentifiers: string[]): C
   return results;
 }
 
-export function validateLessonCode(lessonId: string, source: string): CodeDiagnostic[] {
+function unityConventionDiagnostics(source: string, fileName?: string): CodeDiagnostic[] {
+  const results: CodeDiagnostic[] = [];
+  const callbacks = ['Awake', 'OnEnable', 'Start', 'Update', 'FixedUpdate', 'LateUpdate', 'OnTriggerEnter', 'OnCollisionEnter'];
+  const methodMatches = [...source.matchAll(/\bvoid\s+([A-Za-z_]\w*)\s*\(/g)];
+
+  for (const match of methodMatches) {
+    const written = match[1];
+    const canonical = callbacks.find((callback) => callback.toLowerCase() === written.toLowerCase());
+    if (canonical && canonical !== written) {
+      const loc = locationOf(source, written);
+      results.push(diagnostic({ severity: 'warning', code: 'UNITY1002', title: `\`${written}\` Unity callback’i olarak çağrılmaz`, explanation: `C# bu metodu derleyebilir; ancak Unity callback adlarını büyük/küçük harf dâhil birebir arar. Doğru ad \`${canonical}\` olmalıdır.`, fix: `Metot adını \`${written}\` yerine \`${canonical}\` yap.`, ...loc }));
+    }
+  }
+
+  if (fileName) {
+    const expectedClass = fileName.replace(/\.cs$/i, '');
+    const classMatch = source.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\s*:\s*MonoBehaviour/);
+    if (classMatch && classMatch[1] !== expectedClass) {
+      const loc = locationOf(source, classMatch[1]);
+      results.push(diagnostic({ severity: 'warning', code: 'UNITY1001', title: 'Dosya adı ile MonoBehaviour sınıfı eşleşmiyor', explanation: `Unity bu Component’i güvenilir biçimde tanıyabilmek için \`${fileName}\` dosyasındaki ana sınıfın \`${expectedClass}\` olmasını bekler; şu anda \`${classMatch[1]}\` yazıyor.`, fix: `Sınıfı \`${expectedClass}\` olarak yeniden adlandır veya dosya adını sınıfla eşleştir.`, ...loc }));
+    }
+  }
+  return results;
+}
+
+export function validateCSharpSyntax(source: string, fileName?: string): CodeDiagnostic[] {
+  return [...structuralDiagnostics(source), ...identifierDiagnostics(source, []), ...unityConventionDiagnostics(source, fileName)].map((item) => ({ ...item, fileName }));
+}
+
+export function validateLessonCode(lessonId: string, source: string, stepId?: string, fileName?: string): CodeDiagnostic[] {
   const expectedIdentifiers: Record<string, string[]> = {
     'lesson-2': ['packageCount', 'isGameActive', 'playerName'],
     'lesson-3': ['lives'],
     'lesson-5': ['playerRigidbody', 'other'],
   };
-  const common = [...structuralDiagnostics(source), ...identifierDiagnostics(source, expectedIdentifiers[lessonId] ?? [])];
+  const common = [...structuralDiagnostics(source), ...identifierDiagnostics(source, expectedIdentifiers[lessonId] ?? []), ...unityConventionDiagnostics(source, fileName)];
   const checks: Record<string, CodeDiagnostic[]> = {
     'lesson-1': [
+      required(source, /\busing\s+UnityEngine\s*;/, 'ULP1000', '`UnityEngine` namespace’i erişilebilir', '`MonoBehaviour` ve `Debug` gibi Unity türleri bu namespace üzerinden bulunur.', 'Dosyanın başına `using UnityEngine;` yaz.', 'using'),
       required(source, /public\s+class\s+FirstScript\s*:\s*MonoBehaviour/, 'ULP1001', '`FirstScript` sınıfı hazır', 'Dosyadaki ana sınıf Unity Component davranışını `MonoBehaviour` üzerinden alır.', '`public class FirstScript : MonoBehaviour` yaz.'),
       required(source, /void\s+Start\s*\(\s*\)\s*{[\s\S]*?Debug\.Log\s*\(\s*"[^"\n]+"\s*\)\s*;[\s\S]*?}/, 'ULP1002', '`Start` içinde Console çıktısı var', '`Debug.Log` çağrısı `Start` metodunun gövdesinde ve geçerli bir metin alıyor.', '`Start` içine `Debug.Log("Unity hazır");` ekle.', 'Start'),
     ],
@@ -147,7 +184,10 @@ export function validateLessonCode(lessonId: string, source: string): CodeDiagno
     ],
   };
 
-  const lessonChecks = checks[lessonId] ?? [];
+  let lessonChecks = checks[lessonId] ?? [];
+  if (lessonId === 'lesson-1' && stepId === 'l1-goal') lessonChecks = lessonChecks.slice(0, 1);
+  if (lessonId === 'lesson-1' && stepId === 'l1-anatomy') lessonChecks = lessonChecks.slice(0, 2);
+  if (lessonId === 'lesson-1' && stepId === 'l1-console') lessonChecks = lessonChecks.slice(0, 3);
   const hasBlockingCommonError = common.some((item) => item.severity === 'error');
-  return [...common, ...lessonChecks.map((item) => hasBlockingCommonError && item.severity === 'success' ? { ...item, severity: 'warning' as const, explanation: `${item.explanation} Ancak yukarıdaki derleme hatası çözülmeden bu bölüm çalıştırılamaz.` } : item)];
+  return [...common, ...lessonChecks.map((item) => hasBlockingCommonError && item.severity === 'success' ? { ...item, severity: 'warning' as const, explanation: `${item.explanation} Ancak yukarıdaki derleme hatası çözülmeden bu bölüm çalıştırılamaz.` } : item)].map((item) => ({ ...item, fileName }));
 }
