@@ -78,7 +78,7 @@ function structuralDiagnostics(source: string): CodeDiagnostic[] {
   return results;
 }
 
-function identifierDiagnostics(source: string): CodeDiagnostic[] {
+function identifierDiagnostics(source: string, expectedIdentifiers: string[]): CodeDiagnostic[] {
   const declarations = [...source.matchAll(/\b(?:bool|int|float|string|Rigidbody|Collider|Transform)\s+([A-Za-z_]\w*)\b/g)].map((match) => match[1]);
   const logReferences = [...source.matchAll(/\bDebug\.Log\s*\(\s*([A-Za-z_]\w*)(?:\.\w+)?\s*\)/g)];
   const results: CodeDiagnostic[] = [];
@@ -95,10 +95,14 @@ function identifierDiagnostics(source: string): CodeDiagnostic[] {
     const casingMatch = declarations.find((name) => name.toLowerCase() === used.toLowerCase());
     const loc = locationOf(source, used);
     if (casingMatch) {
+      const canonical = expectedIdentifiers.find((name) => name.toLowerCase() === used.toLowerCase());
+      const declarationHasWrongCase = canonical === used && casingMatch !== canonical;
       results.push(diagnostic({
         severity: 'error', code: 'CS0103', title: `\`${used}\` adı bulunamadı`,
         explanation: `C# büyük/küçük harfe duyarlıdır. Değişken \`${casingMatch}\` olarak tanımlanmış, fakat burada \`${used}\` yazılmış. Bunlar iki farklı semboldür.`,
-        fix: `Bu kullanımı \`${casingMatch}\` olarak değiştir.`, ...loc,
+        fix: declarationHasWrongCase
+          ? `Yanlış yazılmış \`${casingMatch}\` tanımını ve ona ait bütün kullanımları \`${canonical}\` olarak yeniden adlandır.`
+          : `Bu kullanımı tanımdaki doğru ad olan \`${canonical ?? casingMatch}\` biçimine getir.`, ...loc,
       }));
     } else {
       results.push(diagnostic({ severity: 'error', code: 'CS0103', title: `\`${used}\` geçerli bağlamda yok`, explanation: 'Kullanılan isim için erişilebilir bir değişken veya parametre tanımı bulunamadı.', fix: `Önce \`${used}\` değişkenini tanımla veya doğru değişken adını kullan.`, ...loc }));
@@ -114,7 +118,12 @@ function identifierDiagnostics(source: string): CodeDiagnostic[] {
 }
 
 export function validateLessonCode(lessonId: string, source: string): CodeDiagnostic[] {
-  const common = [...structuralDiagnostics(source), ...identifierDiagnostics(source)];
+  const expectedIdentifiers: Record<string, string[]> = {
+    'lesson-2': ['packageCount', 'isGameActive', 'playerName'],
+    'lesson-3': ['lives'],
+    'lesson-5': ['playerRigidbody', 'other'],
+  };
+  const common = [...structuralDiagnostics(source), ...identifierDiagnostics(source, expectedIdentifiers[lessonId] ?? [])];
   const checks: Record<string, CodeDiagnostic[]> = {
     'lesson-1': [
       required(source, /public\s+class\s+FirstScript\s*:\s*MonoBehaviour/, 'ULP1001', '`FirstScript` sınıfı hazır', 'Dosyadaki ana sınıf Unity Component davranışını `MonoBehaviour` üzerinden alır.', '`public class FirstScript : MonoBehaviour` yaz.'),
