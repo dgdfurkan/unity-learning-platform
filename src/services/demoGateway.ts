@@ -1,6 +1,7 @@
 import type { CreateStudentInput, DataGateway, SessionUser, Student } from '../domain/models';
 
-const STORAGE_KEY = 'levelup-demo-students';
+// Versioning the key intentionally resets stale demo progress from earlier prototypes.
+const STORAGE_KEY = 'levelup-demo-students-v2';
 
 const seedStudents: Student[] = [
   {
@@ -9,9 +10,9 @@ const seedStudents: Student[] = [
     email: 'deniz@levelup.demo',
     path: 'Hızlı Başlangıç: Unity & C#',
     pace: 'accelerated',
-    mastery: 38,
+    mastery: 0,
     status: 'active',
-    nextLesson: 'Değişkenlerden oyun durumuna',
+    nextLesson: 'C#, Unity ve ilk çalışan script',
   },
   {
     id: 'student-elif',
@@ -19,9 +20,9 @@ const seedStudents: Student[] = [
     email: 'elif@levelup.demo',
     path: 'Temelden Mobil Oyun Geliştirme',
     pace: 'balanced',
-    mastery: 62,
+    mastery: 0,
     status: 'active',
-    nextLesson: 'Rigidbody ve kuvvetler',
+    nextLesson: 'C#, Unity ve ilk çalışan script',
   },
 ];
 

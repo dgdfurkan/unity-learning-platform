@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { CodeEditor } from '../components/CodeEditor';
 import type { CreateStudentInput, Locale, SessionUser, Student } from '../domain/models';
+import { coursePlan, getLesson, lessons, localize } from '../learning/course';
+import { type CodeDiagnostic, validateLessonCode } from '../learning/codeValidation';
 import { dataGateway } from '../services/demoGateway';
 import { Icon } from '../shared/Icon';
 import { type MessageKey, translate } from '../shared/i18n';
@@ -7,16 +10,6 @@ import { type MessageKey, translate } from '../shared/i18n';
 type T = (key: MessageKey) => string;
 type StudentView = 'home' | 'path' | 'assignments' | 'profile' | 'lesson';
 type AdminView = 'overview' | 'students' | 'content' | 'reviews';
-
-const starterCode = `public class CargoStation : MonoBehaviour
-{
-    // Değişkenleri burada tanımla
-
-    void Start()
-    {
-        // Değerleri Console'a yazdır
-    }
-}`;
 
 export function App() {
   const [locale, setLocale] = useState<Locale>(() => (localStorage.getItem('levelup-locale') as Locale) || 'tr');
@@ -49,6 +42,7 @@ export function App() {
     <WorkspaceShell
       session={session}
       t={t}
+      locale={locale}
       onLocale={toggleLocale}
       online={online}
       onSignOut={async () => {
@@ -108,8 +102,8 @@ function LoginPage({ t, locale, onLocale, onSignedIn }: { t: T; locale: Locale; 
           <h1 id="login-heading">{t('signInTitle')}</h1>
           <p>{t('signInBody')}</p>
           <div className="code-window" aria-label="Örnek C sharp kodu">
-            <div className="window-bar"><i /><i /><i /><span>CargoStation.cs</span></div>
-            <pre><span className="code-violet">private bool</span> isRunning = <span className="code-coral">true</span>;{`\n`}<span className="code-violet">private int</span> packageCount = <span className="code-coral">4</span>;{`\n\n`}<span className="code-muted">// Sonucu gör, nedenini açıkla.</span>{`\n`}Debug.Log(packageCount);</pre>
+            <div className="window-bar"><i /><i /><i /><span>PlayerState.cs</span></div>
+            <pre><span className="code-violet">private int</span> score = <span className="code-coral">0</span>;{`\n`}<span className="code-violet">private bool</span> isGameActive = <span className="code-coral">true</span>;{`\n\n`}<span className="code-muted">// Değeri gör, davranışı açıkla.</span>{`\n`}Debug.Log(score);</pre>
           </div>
         </div>
         <div className="mascot-stage" aria-hidden="true"><img src="./images/nova-mascot.webp" width="313" height="375" alt="" /></div>
@@ -151,11 +145,16 @@ function LoginPage({ t, locale, onLocale, onSignedIn }: { t: T; locale: Locale; 
   );
 }
 
-function WorkspaceShell({ session, t, onLocale, online, onSignOut }: { session: SessionUser; t: T; onLocale: () => void; online: boolean; onSignOut: () => Promise<void> }) {
+function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { session: SessionUser; t: T; locale: Locale; onLocale: () => void; online: boolean; onSignOut: () => Promise<void> }) {
   const [studentView, setStudentView] = useState<StudentView>('home');
   const [adminView, setAdminView] = useState<AdminView>('overview');
   const [menuOpen, setMenuOpen] = useState(false);
+  const [selectedLessonId, setSelectedLessonId] = useState('lesson-1');
+  const [activeStepId, setActiveStepId] = useState('l1-goal');
   const isAdmin = session.role === 'admin';
+  const inLesson = !isAdmin && studentView === 'lesson';
+  const selectedLesson = getLesson(selectedLessonId);
+  const activeStepIndex = Math.max(0, selectedLesson.steps.findIndex((step) => step.id === activeStepId));
 
   const studentNav: { id: StudentView; label: MessageKey; icon: Parameters<typeof Icon>[0]['name'] }[] = [
     { id: 'home', label: 'home', icon: 'home' },
@@ -179,17 +178,34 @@ function WorkspaceShell({ session, t, onLocale, online, onSignOut }: { session: 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const openLesson = (lessonId: string) => {
+    const lesson = getLesson(lessonId);
+    setSelectedLessonId(lesson.id);
+    setActiveStepId(lesson.steps[0].id);
+    setStudentView('lesson');
+    setMenuOpen(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const moveStep = (direction: -1 | 1) => {
+    const next = selectedLesson.steps[activeStepIndex + direction];
+    if (next) setActiveStepId(next.id);
+  };
+
   return (
     <div className="app-shell">
       <aside className={menuOpen ? 'sidebar sidebar-open' : 'sidebar'} aria-label="Ana navigasyon">
         <div className="sidebar-brand"><Brand /><button type="button" className="sidebar-close icon-button" onClick={() => setMenuOpen(false)} aria-label={t('close')}><Icon name="close" /></button></div>
-        <nav>
-          {nav.map((item) => (
-            <button key={item.id} type="button" className={current === item.id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}>
-              <Icon name={item.icon} /><span>{t(item.label)}</span>
-            </button>
-          ))}
-        </nav>
+        {inLesson ? <>
+          <button type="button" className="lesson-back-link" onClick={() => navigate('path')}><Icon name="arrow-right" />{locale === 'tr' ? 'Ders planına dön' : 'Back to course plan'}</button>
+          <div className="lesson-side-heading"><span>{locale === 'tr' ? `Ders ${selectedLesson.order} / 28` : `Lesson ${selectedLesson.order} / 28`}</span><strong>{localize(selectedLesson.title, locale)}</strong><small>{selectedLesson.duration} {locale === 'tr' ? 'dakika' : 'minutes'}</small></div>
+          <div className="side-progress"><i style={{ width: `${((activeStepIndex + 1) / selectedLesson.steps.length) * 100}%` }} /></div>
+          <nav className="lesson-step-nav" aria-label={locale === 'tr' ? 'Ders adımları' : 'Lesson steps'}>
+            {selectedLesson.steps.map((step, index) => <button key={step.id} type="button" className={step.id === activeStepId ? 'lesson-step-link active' : 'lesson-step-link'} onClick={() => { setActiveStepId(step.id); setMenuOpen(false); }} aria-current={step.id === activeStepId ? 'step' : undefined}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{localize(step.title, locale)}</strong><small>{step.duration} {locale === 'tr' ? 'dk.' : 'min.'}</small></div></button>)}
+          </nav>
+        </> : <nav>
+          {nav.map((item) => <button key={item.id} type="button" className={current === item.id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}><Icon name={item.icon} /><span>{t(item.label)}</span></button>)}
+        </nav>}
         <div className="sidebar-footer">
           <div className="user-chip"><span className="avatar">{session.displayName.split(' ').map((part) => part[0]).join('').slice(0, 2)}</span><span><strong>{session.displayName}</strong><small>{t(session.role)}</small></span></div>
           <button className="nav-item" type="button" onClick={onSignOut}><Icon name="logout" /><span>{t('logout')}</span></button>
@@ -200,7 +216,7 @@ function WorkspaceShell({ session, t, onLocale, online, onSignOut }: { session: 
       <div className="workspace">
         <header className="workspace-header">
           <button type="button" className="menu-button icon-button" onClick={() => setMenuOpen(true)} aria-label="Menüyü aç" aria-expanded={menuOpen}><Icon name="menu" /></button>
-          <div className="header-context"><span className="mobile-wordmark">LevelUp<span>.</span></span><span className="desktop-context">{isAdmin ? t('admin') : t('quickStart')}</span></div>
+          <div className="header-context"><span className="mobile-wordmark">LevelUp<span>.</span></span><span className="desktop-context">{inLesson ? localize(selectedLesson.title, locale) : isAdmin ? t('admin') : t('quickStart')}</span></div>
           <div className="header-actions">
             <span className={online ? 'sync-state online' : 'sync-state offline'}><Icon name={online ? 'wifi' : 'wifi-off'} /><span>{online ? t('online') : t('offline')}</span></span>
             <span className="demo-pill">{t('demo')}</span>
@@ -208,77 +224,68 @@ function WorkspaceShell({ session, t, onLocale, online, onSignOut }: { session: 
           </div>
         </header>
         <main id="main-content" className="workspace-main">
-          {isAdmin ? <AdminDashboard t={t} view={adminView} setView={setAdminView} /> : <StudentDashboard t={t} view={studentView} setView={setStudentView} />}
+          {isAdmin ? <AdminDashboard t={t} view={adminView} setView={setAdminView} /> : <StudentDashboard t={t} locale={locale} view={studentView} setView={setStudentView} lessonId={selectedLessonId} stepId={activeStepId} onStep={setActiveStepId} onOpenLesson={openLesson} />}
         </main>
       </div>
 
-      <nav className="bottom-nav" aria-label="Mobil navigasyon">
-        {nav.map((item) => (
-          <button key={item.id} type="button" className={current === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}>
-            <Icon name={item.icon} /><span>{t(item.label)}</span>
-          </button>
-        ))}
-      </nav>
+      {inLesson ? <nav className="lesson-bottom-nav" aria-label={locale === 'tr' ? 'Ders adımı navigasyonu' : 'Lesson step navigation'}><button type="button" onClick={() => moveStep(-1)} disabled={activeStepIndex === 0}><Icon name="arrow-right" /><span>{locale === 'tr' ? 'Önceki' : 'Previous'}</span></button><button type="button" className="lesson-mobile-menu" onClick={() => setMenuOpen(true)}><span>{activeStepIndex + 1} / {selectedLesson.steps.length}</span><strong>{localize(selectedLesson.steps[activeStepIndex].title, locale)}</strong></button><button type="button" onClick={() => moveStep(1)} disabled={activeStepIndex === selectedLesson.steps.length - 1}><span>{locale === 'tr' ? 'Sonraki' : 'Next'}</span><Icon name="arrow-right" /></button></nav> : <nav className="bottom-nav" aria-label="Mobil navigasyon">
+        {nav.map((item) => <button key={item.id} type="button" className={current === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}><Icon name={item.icon} /><span>{t(item.label)}</span></button>)}
+      </nav>}
     </div>
   );
 }
 
-function StudentDashboard({ t, view, setView }: { t: T; view: StudentView; setView: (view: StudentView) => void }) {
-  if (view === 'lesson') return <LessonWorkspace t={t} onBack={() => setView('home')} />;
-  if (view === 'path') return <LearningPath t={t} expanded />;
-  if (view === 'assignments') return <SimplePlaceholder icon="clipboard" title={t('assignments')} body="Cargo Idle checkpoint’i Cuma 18.00’e kadar hazır." />;
-  if (view === 'profile') return <SimplePlaceholder icon="user" title={t('profile')} body="Mastery %38 · 740 XP · 4 günlük çalışma serisi" />;
+function StudentDashboard({ t, locale, view, setView, lessonId, stepId, onStep, onOpenLesson }: { t: T; locale: Locale; view: StudentView; setView: (view: StudentView) => void; lessonId: string; stepId: string; onStep: (stepId: string) => void; onOpenLesson: (lessonId: string) => void }) {
+  const firstLesson = lessons[0];
+  if (view === 'lesson') return <LessonWorkspace locale={locale} lessonId={lessonId} stepId={stepId} onStep={onStep} onBack={() => setView('path')} />;
+  if (view === 'path') return <LearningPath t={t} locale={locale} expanded onOpenLesson={onOpenLesson} />;
+  if (view === 'assignments') return <SimplePlaceholder icon="clipboard" title={t('assignments')} body={locale === 'tr' ? 'Henüz atanmış bir ödev yok. Eğitmenin tarafından verilen çalışmalar burada tarih, açıklama ve değerlendirme ölçütleriyle görünecek.' : 'There are no assignments yet. Work assigned by your instructor will appear here with its due date, description, and assessment criteria.'} />;
+  if (view === 'profile') return <SimplePlaceholder icon="user" title={t('profile')} body={locale === 'tr' ? 'Yeni başlangıç · %0 mastery · 0 XP · çalışma serisi henüz başlamadı' : 'Fresh start · 0% mastery · 0 XP · no study streak yet'} />;
 
   return (
     <div className="dashboard enter-view">
       <div className="page-intro">
-        <div><p className="section-kicker">{t('greeting')}, Deniz</p><h1>Bugün bir sistemi gerçekten çalıştır.</h1><p>Kısa bir C# pratiğiyle başla; ardından aynı mantığı Cargo Idle projesindeki istasyona taşı.</p></div>
-        <div className="streak-card"><Icon name="spark" /><span><strong>4</strong><small>günlük seri</small></span></div>
+        <div><p className="section-kicker">{t('greeting')}, Deniz</p><h1>{locale === 'tr' ? 'Temeli anlayarak ilk kodunu çalıştır.' : 'Run your first code by understanding the foundation.'}</h1><p>{locale === 'tr' ? 'Sıfırdan başlıyoruz. Her kavram kısa anlatım, canlı uygulama, kontrollü kodlama ve geri çağırma adımlarıyla ilerleyecek.' : 'We are starting from zero. Every concept progresses through a short explanation, live practice, checked coding, and recall.'}</p></div>
+        <div className="streak-card"><Icon name="spark" /><span><strong>0</strong><small>{locale === 'tr' ? 'günlük seri' : 'day streak'}</small></span></div>
       </div>
 
       <section className="focus-card" aria-labelledby="today-title">
         <div className="focus-main">
-          <div className="focus-meta"><span className="eyebrow"><Icon name="code" />{t('todayFocus')}</span><span>{t('session')}</span></div>
-          <h2 id="today-title">{t('lessonTitle')}</h2>
-          <TechnicalText text={t('lessonDescription')} />
-          <div className="lesson-progress" aria-label="Ders ilerlemesi yüzde 35"><span style={{ width: '35%' }} /></div>
-          <div className="focus-actions"><button className="button button-primary" type="button" onClick={() => setView('lesson')}>{t('continueLesson')}<Icon name="arrow-right" /></button><span>{t('minutes')}</span></div>
+          <div className="focus-meta"><span className="eyebrow"><Icon name="code" />{t('todayFocus')}</span><span>{locale === 'tr' ? 'Ders 01 / 28' : 'Lesson 01 / 28'}</span></div>
+          <h2 id="today-title">{localize(firstLesson.title, locale)}</h2>
+          <p>{localize(firstLesson.summary, locale)}</p>
+          <div className="lesson-progress" aria-label={locale === 'tr' ? 'Ders ilerlemesi yüzde 0' : 'Lesson progress zero percent'}><span style={{ width: '0%' }} /></div>
+          <div className="focus-actions"><button className="button button-primary" type="button" onClick={() => onOpenLesson(firstLesson.id)}>{locale === 'tr' ? 'İlk derse başla' : 'Start the first lesson'}<Icon name="arrow-right" /></button><span>60 {locale === 'tr' ? 'dakika' : 'minutes'}</span></div>
         </div>
-        <div className="focus-visual" aria-hidden="true"><div className="mini-editor"><span>bool isRunning = true;</span><span>int packageCount = 4;</span><i /><strong>Console: 4 paket</strong></div><img src="./images/nova-mascot.webp" width="196" height="235" alt="" /></div>
+        <div className="focus-visual" aria-hidden="true"><div className="mini-editor"><span>void Start()</span><span>Debug.Log("Unity hazır");</span><i /><strong>Console: Unity hazır</strong></div><img src="./images/nova-mascot.webp" width="196" height="235" alt="" /></div>
       </section>
 
       <div className="metric-grid">
-        <article className="metric-card"><span className="metric-icon violet"><Icon name="repeat" /></span><div><p>{t('reviewQueue')}</p><strong>3</strong><small>{t('reviewCount')}</small></div><button type="button" aria-label={t('reviewQueue')}><Icon name="chevron-right" /></button></article>
-        <article className="metric-card"><span className="metric-icon coral"><Icon name="gauge" /></span><div><p>{t('mastery')}</p><strong>%38</strong><small>+%6 {t('weekly').toLocaleLowerCase('tr')}</small></div><div className="ring" aria-label="Yüzde 38"><span>38</span></div></article>
+        <article className="metric-card"><span className="metric-icon violet"><Icon name="repeat" /></span><div><p>{t('reviewQueue')}</p><strong>0</strong><small>{locale === 'tr' ? 'İlk tekrar 5. derste açılır' : 'First review unlocks in lesson 5'}</small></div><button type="button" aria-label={t('reviewQueue')}><Icon name="chevron-right" /></button></article>
+        <article className="metric-card"><span className="metric-icon coral"><Icon name="gauge" /></span><div><p>{t('mastery')}</p><strong>%0</strong><small>{locale === 'tr' ? 'Henüz ölçüm yok' : 'No measurement yet'}</small></div><div className="ring ring-zero" aria-label="Yüzde 0"><span>0</span></div></article>
       </div>
 
       <div className="content-grid">
-        <LearningPath t={t} />
+        <LearningPath t={t} locale={locale} onOpenLesson={onOpenLesson} onViewAll={() => setView('path')} />
         <section className="project-card" aria-labelledby="project-title">
-          <div className="project-image"><img src="./images/cargo-idle-project.webp" alt="Unity Editor içinde Cargo Idle kargo deposu projesi" width="1280" height="862" loading="lazy" /><span>{t('project')}</span></div>
-          <div className="project-copy"><p className="section-kicker">Checkpoint 02</p><h2 id="project-title">{t('projectTitle')}</h2><p>{t('projectDescription')}</p><button type="button" className="text-button">{t('openProject')}<Icon name="arrow-right" /></button></div>
+          <div className="project-image project-blank"><div><Icon name="project" /><span>UNITY</span></div><b>{locale === 'tr' ? 'Proje alanı' : 'Project space'}</b></div>
+          <div className="project-copy"><p className="section-kicker">{locale === 'tr' ? 'Derslerle birlikte' : 'Alongside lessons'}</p><h2 id="project-title">{locale === 'tr' ? 'Kendi oyun projen adım adım oluşacak.' : 'Your own game project will take shape step by step.'}</h2><p>{locale === 'tr' ? 'Proje türü öğrenci hedefi ve ilk tanılama sonucuna göre seçilecek; platform tek bir örnek oyuna bağlı değildir.' : 'The project type will be selected from the learner’s goals and initial assessment; the platform is not tied to one sample game.'}</p><button type="button" className="text-button" onClick={() => setView('path')}>{locale === 'tr' ? '28 derslik planı gör' : 'View the 28-lesson plan'}<Icon name="arrow-right" /></button></div>
         </section>
       </div>
     </div>
   );
 }
 
-const pathItems = [
-  { title: 'Tanılama, Git ve proje düzeni', state: 'completed' as const, number: '01' },
-  { title: 'Değişkenlerden oyun durumuna', state: 'inProgress' as const, number: '02' },
-  { title: 'Koşullar ve üretim kararları', state: 'ready' as const, number: '03' },
-  { title: 'Transform, zaman ve hareket', state: 'locked' as const, number: '04' },
-  { title: 'İlk geri çağırma oturumu', state: 'review' as const, number: 'R1' },
-];
-
-function LearningPath({ t, expanded = false }: { t: T; expanded?: boolean }) {
+function LearningPath({ t, locale, expanded = false, onOpenLesson, onViewAll }: { t: T; locale: Locale; expanded?: boolean; onOpenLesson: (lessonId: string) => void; onViewAll?: () => void }) {
+  const items = expanded ? coursePlan : coursePlan.slice(0, 5);
   return (
     <section className={expanded ? 'path-panel path-page enter-view' : 'path-panel'} aria-labelledby="path-title">
-      <div className="section-heading"><div><p className="section-kicker">{t('quickStart')}</p><h2 id="path-title">{t('learningPath')}</h2></div><span>4 / 28</span></div>
+      <div className="section-heading"><div><p className="section-kicker">{t('quickStart')}</p><h2 id="path-title">{t('learningPath')}</h2></div><span>0 / 28</span></div>
       <p className="section-description">{t('pathDescription')}</p>
       <ol className="path-list">
-        {pathItems.map((item) => <li key={item.number} className={`path-item ${item.state}`}><span className="path-node">{item.state === 'completed' ? <Icon name="check" /> : item.state === 'locked' ? <Icon name="lock" /> : item.number}</span><div><strong>{item.title}</strong><small>{t(item.state)}</small></div>{item.state !== 'locked' && <button type="button" aria-label={`${item.title} dersini aç`}><Icon name="chevron-right" /></button>}</li>)}
+        {items.map((item) => { const available = item.order <= 5; return <li key={item.order} className={`path-item ${available ? 'ready' : 'locked'}`}><span className="path-node">{available ? String(item.order).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(item.title, locale)}</strong><small>{locale === 'tr' ? `Modül ${item.module} · ${item.duration} dakika` : `Module ${item.module} · ${item.duration} minutes`}</small></div>{available && <button type="button" onClick={() => onOpenLesson(`lesson-${item.order}`)} aria-label={`${localize(item.title, locale)} dersini aç`}><Icon name="chevron-right" /></button>}</li>; })}
       </ol>
+      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 5 ders hazır · toplam 28 ders' : 'First 5 lessons ready · 28 lessons total'}<Icon name="arrow-right" /></button>}
     </section>
   );
 }
@@ -310,16 +317,16 @@ function AdminDashboard({ t, view, setView }: { t: T; view: AdminView; setView: 
       <div className="page-intro admin-intro"><div><p className="section-kicker">{t('admin')}</p><h1>{t('adminTitle')}</h1><p>{t('adminBody')}</p></div><button className="button button-primary" type="button" onClick={() => setModalOpen(true)}><Icon name="plus" />{t('createStudent')}</button></div>
       <div className="admin-metrics">
         <Metric label={t('activeStudents')} value={String(students.length)} detail="2 yol şablonunda" icon="users" />
-        <Metric label={t('pendingReviews')} value="2" detail="En eskisi 18 saat" icon="clipboard" tone="coral" />
-        <Metric label={t('reviewDebt')} value="7" detail="3 öğrenciye dağılıyor" icon="repeat" tone="green" />
+        <Metric label={t('pendingReviews')} value="0" detail="Bekleyen çalışma yok" icon="clipboard" tone="coral" />
+        <Metric label={t('reviewDebt')} value="0" detail="Tekrar kuyruğu temiz" icon="repeat" tone="green" />
       </div>
       <section className="student-panel" aria-labelledby="students-title">
         <div className="section-heading"><div><p className="section-kicker">{t('overview')}</p><h2 id="students-title">{t('studentsTitle')}</h2><p>{t('studentsBody')}</p></div><button className="text-button" type="button" onClick={() => setView('students')}>{t('students')}<Icon name="arrow-right" /></button></div>
         {loading ? <StudentSkeleton /> : <StudentList students={students} t={t} />}
       </section>
       <section className="admin-insight">
-        <div><span className="metric-icon violet"><Icon name="spark" /></span><p className="section-kicker">Eğitmen odağı</p><h2>Bir sonraki canlı derste <code>if</code> koşulunu oyun durumuna bağla.</h2><p>Deniz değişken tanımlarını tamamlıyor; ancak kodun hangi durumda çalışacağını açıklarken yardıma ihtiyaç duyuyor.</p></div>
-        <div className="mastery-bars" aria-label="Kavram mastery dağılımı"><MasteryBar label="Variables" value={72} /><MasteryBar label="Conditionals" value={41} /><MasteryBar label="Unity lifecycle" value={24} /></div>
+        <div><span className="metric-icon violet"><Icon name="spark" /></span><p className="section-kicker">Eğitmen odağı</p><h2>İlk tanılamadan sonra öğrencinin gerçek ihtiyacını belirle.</h2><p>Henüz değerlendirme verisi yok. İlk ders tamamlandığında kavram bazlı gözlemler ve müdahale önerileri burada oluşacak.</p></div>
+        <div className="mastery-bars" aria-label="Kavram mastery dağılımı"><MasteryBar label="Variables" value={0} /><MasteryBar label="Conditionals" value={0} /><MasteryBar label="Unity lifecycle" value={0} /></div>
       </section>
       {modalOpen && <CreateStudentModal t={t} onClose={() => setModalOpen(false)} onCreated={created} />}
       {toast && <div className="toast" role="status"><Icon name="check" />{toast}</div>}
@@ -404,40 +411,42 @@ function CreateStudentModal({ t, onClose, onCreated }: { t: T; onClose: () => vo
   );
 }
 
-function LessonWorkspace({ t, onBack }: { t: T; onBack: () => void }) {
-  const [code, setCode] = useState(starterCode);
+function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale: Locale; lessonId: string; stepId: string; onStep: (stepId: string) => void; onBack: () => void }) {
+  const lesson = getLesson(lessonId);
+  const activeStepIndex = Math.max(0, lesson.steps.findIndex((step) => step.id === stepId));
+  const activeStep = lesson.steps[activeStepIndex];
+  const [code, setCode] = useState(lesson.starterCode);
   const [checking, setChecking] = useState(false);
-  const [results, setResults] = useState<{ label: string; passed: boolean; hint: string }[] | null>(null);
+  const [results, setResults] = useState<CodeDiagnostic[] | null>(null);
+
+  useEffect(() => {
+    setCode(lesson.starterCode);
+    setResults(null);
+  }, [lesson.id, lesson.starterCode]);
 
   const runChecks = async () => {
     setChecking(true);
     await new Promise((resolve) => window.setTimeout(resolve, 460));
-    const normalized = code.replace(/\s+/g, ' ');
-    setResults([
-      { label: '`isRunning` bir `bool` değeridir', passed: /bool\s+isRunning\s*=\s*true\s*;/.test(code), hint: '`bool isRunning = true;` biçimini dene.' },
-      { label: '`packageCount` bir `int` değeridir', passed: /int\s+packageCount\s*=\s*4\s*;/.test(code), hint: 'Paket sayısı için tam sayı türü olan `int` gerekir.' },
-      { label: '`stationName` bir `string` değeridir', passed: /string\s+stationName\s*=\s*"[^"]+"\s*;/.test(code), hint: 'Metin değerini çift tırnak içinde tanımla.' },
-      { label: 'Değerlerden biri `Debug.Log` ile yazdırılır', passed: /Debug\.Log\s*\([^)]+\)\s*;/.test(normalized), hint: '`Start` içinde `Debug.Log(packageCount);` kullanabilirsin.' },
-    ]);
+    setResults(validateLessonCode(lesson.id, code));
     setChecking(false);
   };
-  const passed = results?.every((result) => result.passed);
+  const passed = Boolean(results?.length) && !results?.some((result) => result.severity === 'error');
+  const progress = ((activeStepIndex + 1) / lesson.steps.length) * 100;
 
   return (
     <div className="lesson-page enter-view">
-      <button className="back-button" type="button" onClick={onBack}><Icon name="arrow-right" />{t('reset')}</button>
-      <div className="lesson-heading"><div><p className="section-kicker">{t('session')} · {t('lessonWorkspace')}</p><h1>{t('lessonTitle')}</h1><p>{t('lessonLead')}</p></div><div className="lesson-score"><span>+40</span><small>XP</small></div></div>
-      <div className="lesson-layout">
-        <aside className="task-panel"><span className="metric-icon coral"><Icon name="code" /></span><p className="section-kicker">{t('task')}</p><h2>Bir üretim istasyonunun durumunu tanımla.</h2><TechnicalText text={t('taskBody')} /><div className="concept-tags"><span>bool</span><span>int</span><span>string</span><span>Debug.Log</span></div></aside>
-        <section className="editor-panel" aria-label="C sharp kod editörü">
-          <div className="editor-toolbar"><span>CargoStation.cs</span><small>Basit doğrulayıcı</small></div>
-          <textarea value={code} onChange={(event) => setCode(event.target.value)} spellCheck={false} aria-label="C sharp kodu" />
-          <div className="editor-actions"><button type="button" className="button button-primary" onClick={runChecks} disabled={checking}>{checking && <span className="spinner" />}{checking ? t('checking') : t('checkCode')}<Icon name="arrow-right" /></button></div>
-        </section>
-        <aside className="results-panel" aria-live="polite"><div className="section-heading"><div><p className="section-kicker">{t('tests')}</p><h2>{results ? `${results.filter((item) => item.passed).length} / ${results.length}` : '—'}</h2></div></div>
-          {!results ? <div className="empty-result"><Icon name="clipboard" /><p>Kodunu çalıştırmadan önce ne beklediğini tahmin et.</p></div> : <><div className={passed ? 'result-summary passed' : 'result-summary'}><Icon name={passed ? 'check' : 'code'} /><p>{passed ? t('passed') : t('needsWork')}</p></div><ul className="test-list">{results.map((result) => <li key={result.label} className={result.passed ? 'passed' : 'failed'}><span><Icon name={result.passed ? 'check' : 'close'} /></span><div><strong><TechnicalText text={result.label} /></strong>{!result.passed && <small><TechnicalText text={result.hint} /></small>}</div></li>)}</ul></>}
+      <button className="back-button" type="button" onClick={onBack}><Icon name="arrow-right" />{locale === 'tr' ? 'Ders planına dön' : 'Back to course plan'}</button>
+      <div className="lesson-heading"><div><p className="section-kicker">{locale === 'tr' ? `Ders ${lesson.order} / 28 · Uygulama alanı` : `Lesson ${lesson.order} / 28 · Practice workspace`}</p><h1>{localize(lesson.title, locale)}</h1><p>{localize(lesson.summary, locale)}</p></div><div className="lesson-duration"><strong>{lesson.duration}</strong><small>{locale === 'tr' ? 'dakika' : 'minutes'}</small></div></div>
+      <div className="lesson-stage-progress"><span><strong>{String(activeStepIndex + 1).padStart(2, '0')}</strong> / {String(lesson.steps.length).padStart(2, '0')}</span><div><i style={{ width: `${progress}%` }} /></div><small>{localize(activeStep.title, locale)}</small></div>
+      <div className="lesson-workbench">
+        <aside className="lesson-guidance">
+          <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'practice' ? 'code' : activeStep.kind === 'reflect' ? 'repeat' : 'book'} /><span>{activeStep.duration} {locale === 'tr' ? 'dakika' : 'minutes'}</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki adım' : 'Current step'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul></section>
+          <section className="lesson-task-card"><p className="section-kicker">{locale === 'tr' ? 'Kod görevi' : 'Coding task'}</p><h3>{localize(lesson.taskTitle, locale)}</h3><TechnicalText text={localize(lesson.taskBody, locale)} /><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
+          {passed && <div className="lesson-success"><Icon name="check" /><p>{localize(lesson.successMessage, locale)}</p></div>}
         </aside>
+        <CodeEditor locale={locale} fileName={lesson.fileName} value={code} diagnostics={results} checking={checking} onChange={(next) => { setCode(next); setResults(null); }} onRun={runChecks} onReset={() => { setCode(lesson.starterCode); setResults(null); }} />
       </div>
+      <div className="lesson-step-actions"><button className="button button-secondary" type="button" disabled={activeStepIndex === 0} onClick={() => onStep(lesson.steps[activeStepIndex - 1].id)}><Icon name="arrow-right" />{locale === 'tr' ? 'Önceki adım' : 'Previous step'}</button><span>{activeStepIndex + 1} / {lesson.steps.length}</span><button className="button button-primary" type="button" disabled={activeStepIndex === lesson.steps.length - 1} onClick={() => onStep(lesson.steps[activeStepIndex + 1].id)}>{locale === 'tr' ? 'Sonraki adım' : 'Next step'}<Icon name="arrow-right" /></button></div>
     </div>
   );
 }

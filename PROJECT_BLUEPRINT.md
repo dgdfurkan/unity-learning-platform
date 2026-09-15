@@ -326,7 +326,7 @@ Animasyonlar `transform` ve `opacity` üzerinde çalışır; layout thrashing ol
 
 - 2D fizik laboratuvarı
 - Seçili 3D etkileşimler
-- Kargo idle proje checkpoint'leri
+- Öğrenci hedefine göre seçilen proje checkpoint'leri
 
 ### Aşama 5 — PWA, performans ve yayın
 
