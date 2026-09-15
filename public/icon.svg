@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="LevelUp Studio">
+  <rect width="512" height="512" rx="116" fill="#6B55D9"/>
+  <path d="M116 156h112v48h-64v104h64v48H116V156Zm280 0v200H284v-48h64V204h-64v-48h112Z" fill="#fff"/>
+  <circle cx="256" cy="256" r="24" fill="#F27649"/>
+</svg>
