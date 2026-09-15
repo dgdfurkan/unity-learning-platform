@@ -446,7 +446,7 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack }: { locale:
     updateWorkspace((value) => ({ ...value, results }));
     setChecking(false);
   };
-  const passed = Boolean(workspace.results?.some((result) => result.severity === 'success')) && !workspace.results?.some((result) => result.severity === 'error');
+  const passed = Boolean(workspace.results?.some((result) => result.severity === 'success')) && !workspace.results?.some((result) => result.severity !== 'success');
   const progress = ((activeStepIndex + 1) / lesson.steps.length) * 100;
 
   return (

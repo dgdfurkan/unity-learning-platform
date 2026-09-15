@@ -63,11 +63,15 @@ export function CodeEditor({ locale, files, activeFileId, diagnostics, checking,
     ? { error: 'hata', warning: 'uyarı', reset: 'Bu adımı sıfırla', checking: 'Kontrol ediliyor…', check: 'Kodu kontrol et', fix: 'Nasıl düzeltilir', add: 'Yeni script', empty: 'Boş dosya. Kodu ilk karakterden itibaren sen yazacaksın.' }
     : { error: 'error', warning: 'warning', reset: 'Reset this step', checking: 'Checking…', check: 'Check code', fix: 'How to fix', add: 'New script', empty: 'Empty file. You will write the code from the very first character.' };
 
-  useEffect(() => {
+  const resetCursorState = () => {
     setCursor({ line: 1, column: 1 });
     setScrollTop(0);
     setHighlightedLine(null);
     if (editorRef.current) editorRef.current.scrollTop = 0;
+  };
+
+  useEffect(() => {
+    resetCursorState();
   }, [activeFileId]);
 
   const updateCursor = () => {
@@ -162,8 +166,8 @@ export function CodeEditor({ locale, files, activeFileId, diagnostics, checking,
     <section className="ide-shell" aria-label="C sharp kod editörü">
       <div className="ide-titlebar"><span className="ide-product">LEVELUP IDE</span><span>{activeFile?.name}</span><div><i /><i /><i /></div></div>
       <div className="ide-tabs" role="tablist" aria-label={locale === 'tr' ? 'Açık scriptler' : 'Open scripts'}>
-        <div className="ide-tab-strip">{files.map((file) => <button key={file.id} type="button" role="tab" aria-selected={file.id === activeFileId} className={file.id === activeFileId ? 'ide-tab active' : 'ide-tab'} onClick={() => onSelectFile(file.id)}><Icon name="code" />{file.name}{file.content && <i />}</button>)}</div>
-        <button className="ide-add-tab" type="button" onClick={onAddFile} title={labels.add}><span>+</span>{labels.add}</button>
+        <div className="ide-tab-strip">{files.map((file) => <button key={file.id} type="button" role="tab" aria-selected={file.id === activeFileId} className={file.id === activeFileId ? 'ide-tab active' : 'ide-tab'} onClick={() => { resetCursorState(); onSelectFile(file.id); }}><Icon name="code" />{file.name}{file.content && <i />}</button>)}</div>
+        <button className="ide-add-tab" type="button" onClick={() => { resetCursorState(); onAddFile(); }} title={labels.add}><span>+</span>{labels.add}</button>
       </div>
       <div className="ide-editor-wrap">
         <div ref={gutterRef} className="ide-gutter" aria-hidden="true">{lines.map((_, index) => <span key={index}>{index + 1}</span>)}</div>
