@@ -1,4 +1,4 @@
-import { KeyboardEvent, ReactNode, useMemo, useRef, useState } from 'react';
+import { KeyboardEvent, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import type { Locale } from '../domain/models';
 import type { CodeDiagnostic } from '../learning/codeValidation';
 import { Icon } from '../shared/Icon';
@@ -62,6 +62,13 @@ export function CodeEditor({ locale, files, activeFileId, diagnostics, checking,
   const labels = locale === 'tr'
     ? { error: 'hata', warning: 'uyarı', reset: 'Bu adımı sıfırla', checking: 'Kontrol ediliyor…', check: 'Kodu kontrol et', fix: 'Nasıl düzeltilir', add: 'Yeni script', empty: 'Boş dosya. Kodu ilk karakterden itibaren sen yazacaksın.' }
     : { error: 'error', warning: 'warning', reset: 'Reset this step', checking: 'Checking…', check: 'Check code', fix: 'How to fix', add: 'New script', empty: 'Empty file. You will write the code from the very first character.' };
+
+  useEffect(() => {
+    setCursor({ line: 1, column: 1 });
+    setScrollTop(0);
+    setHighlightedLine(null);
+    if (editorRef.current) editorRef.current.scrollTop = 0;
+  }, [activeFileId]);
 
   const updateCursor = () => {
     const editor = editorRef.current;

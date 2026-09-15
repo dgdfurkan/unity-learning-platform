@@ -24,6 +24,10 @@ const diagnostic = (partial: Omit<CodeDiagnostic, 'id'>): CodeDiagnostic => ({
   id: `${partial.code}-${partial.line ?? 0}-${partial.title}`,
 });
 
+const maskCommentsAndStrings = (source: string): string => source
+  .replace(/\/\/[^\n]*/g, (value) => ' '.repeat(value.length))
+  .replace(/"(?:\\.|[^"\\])*"/g, (value) => ' '.repeat(value.length));
+
 const required = (
   source: string,
   pattern: RegExp,
@@ -43,9 +47,14 @@ function structuralDiagnostics(source: string): CodeDiagnostic[] {
   const stack: { char: string; index: number }[] = [];
   let inString = false;
   let escaped = false;
+  let inLineComment = false;
 
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
+    const next = source[index + 1];
+    if (char === '\n') inLineComment = false;
+    if (!inString && char === '/' && next === '/') inLineComment = true;
+    if (inLineComment) continue;
     if (char === '"' && !escaped) inString = !inString;
     escaped = char === '\\' && !escaped;
     if (char !== '\\') escaped = false;
@@ -86,8 +95,9 @@ function structuralDiagnostics(source: string): CodeDiagnostic[] {
 }
 
 function identifierDiagnostics(source: string, expectedIdentifiers: string[]): CodeDiagnostic[] {
-  const declarations = [...source.matchAll(/\b(?:bool|int|float|string|Rigidbody|Collider|Transform)\s+([A-Za-z_]\w*)\b/g)].map((match) => match[1]);
-  const logReferences = [...source.matchAll(/\bDebug\.Log\s*\(\s*([A-Za-z_]\w*)(?:\.\w+)?\s*\)/g)];
+  const codeOnly = maskCommentsAndStrings(source);
+  const declarations = [...codeOnly.matchAll(/\b(?:bool|int|float|string|Rigidbody|Collider|Transform)\s+([A-Za-z_]\w*)\b/g)].map((match) => match[1]);
+  const logReferences = [...codeOnly.matchAll(/\bDebug\.Log\s*\(\s*([A-Za-z_]\w*)(?:\.\w+)?\s*\)/g)];
   const results: CodeDiagnostic[] = [];
 
   const duplicates = declarations.filter((name, index) => declarations.indexOf(name) !== index);
@@ -116,7 +126,7 @@ function identifierDiagnostics(source: string, expectedIdentifiers: string[]): C
     }
   }
 
-  const wrongDebugCase = source.match(/\bdebug\.log\b/i)?.[0];
+  const wrongDebugCase = codeOnly.match(/\bdebug\.log\b/i)?.[0];
   if (wrongDebugCase && wrongDebugCase !== 'Debug.Log') {
     const loc = locationOf(source, wrongDebugCase);
     results.push(diagnostic({ severity: 'error', code: 'CS0103', title: `\`${wrongDebugCase}\` geçerli bir Unity çağrısı değil`, explanation: 'Tür ve metod adları da case-sensitive çalışır. Doğru API adı `Debug.Log` biçimindedir.', fix: `\`${wrongDebugCase}\` ifadesini \`Debug.Log\` olarak değiştir.`, ...loc }));
@@ -126,8 +136,9 @@ function identifierDiagnostics(source: string, expectedIdentifiers: string[]): C
 
 function unityConventionDiagnostics(source: string, fileName?: string): CodeDiagnostic[] {
   const results: CodeDiagnostic[] = [];
+  const codeOnly = maskCommentsAndStrings(source);
   const callbacks = ['Awake', 'OnEnable', 'Start', 'Update', 'FixedUpdate', 'LateUpdate', 'OnTriggerEnter', 'OnCollisionEnter'];
-  const methodMatches = [...source.matchAll(/\bvoid\s+([A-Za-z_]\w*)\s*\(/g)];
+  const methodMatches = [...codeOnly.matchAll(/\bvoid\s+([A-Za-z_]\w*)\s*\(/g)];
 
   for (const match of methodMatches) {
     const written = match[1];
@@ -140,7 +151,7 @@ function unityConventionDiagnostics(source: string, fileName?: string): CodeDiag
 
   if (fileName) {
     const expectedClass = fileName.replace(/\.cs$/i, '');
-    const classMatch = source.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\s*:\s*MonoBehaviour/);
+    const classMatch = codeOnly.match(/\bpublic\s+class\s+([A-Za-z_]\w*)\s*:\s*MonoBehaviour/);
     if (classMatch && classMatch[1] !== expectedClass) {
       const loc = locationOf(source, classMatch[1]);
       results.push(diagnostic({ severity: 'warning', code: 'UNITY1001', title: 'Dosya adı ile MonoBehaviour sınıfı eşleşmiyor', explanation: `Unity bu Component’i güvenilir biçimde tanıyabilmek için \`${fileName}\` dosyasındaki ana sınıfın \`${expectedClass}\` olmasını bekler; şu anda \`${classMatch[1]}\` yazıyor.`, fix: `Sınıfı \`${expectedClass}\` olarak yeniden adlandır veya dosya adını sınıfla eşleştir.`, ...loc }));
@@ -188,6 +199,5 @@ export function validateLessonCode(lessonId: string, source: string, stepId?: st
   if (lessonId === 'lesson-1' && stepId === 'l1-goal') lessonChecks = lessonChecks.slice(0, 1);
   if (lessonId === 'lesson-1' && stepId === 'l1-anatomy') lessonChecks = lessonChecks.slice(0, 2);
   if (lessonId === 'lesson-1' && stepId === 'l1-console') lessonChecks = lessonChecks.slice(0, 3);
-  const hasBlockingCommonError = common.some((item) => item.severity === 'error');
-  return [...common, ...lessonChecks.map((item) => hasBlockingCommonError && item.severity === 'success' ? { ...item, severity: 'warning' as const, explanation: `${item.explanation} Ancak yukarıdaki derleme hatası çözülmeden bu bölüm çalıştırılamaz.` } : item)].map((item) => ({ ...item, fileName }));
+  return [...common, ...lessonChecks].map((item) => ({ ...item, fileName }));
 }
