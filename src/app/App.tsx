@@ -159,6 +159,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   const [awardPulse, setAwardPulse] = useState<{ xp: number; title: string; streak: boolean } | null>(null);
   const scrollAnimationFrame = useRef<number | null>(null);
   const scrollGlowTimer = useRef<number | null>(null);
+  const originalScrollBehavior = useRef<string | null>(null);
   const isAdmin = session.role === 'admin';
   const inLesson = !isAdmin && studentView === 'lesson';
   const selectedLesson = getLesson(selectedLessonId);
@@ -194,6 +195,9 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     document.documentElement.classList.add('learning-scroll');
 
     const scroller = document.scrollingElement ?? document.documentElement;
+    const scrollSurface = scroller as HTMLElement;
+    if (originalScrollBehavior.current === null) originalScrollBehavior.current = scrollSurface.style.scrollBehavior;
+    scrollSurface.style.scrollBehavior = 'auto';
     const start = scroller.scrollTop || window.scrollY;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const duration = reduceMotion ? 0 : 560;
@@ -204,6 +208,8 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
       document.querySelector<HTMLElement>('[data-lesson-top]')?.focus({ preventScroll: true });
+      scrollSurface.style.scrollBehavior = originalScrollBehavior.current ?? '';
+      originalScrollBehavior.current = null;
       scrollAnimationFrame.current = null;
     };
 
@@ -247,6 +253,8 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   useEffect(() => () => {
     if (scrollAnimationFrame.current !== null) cancelAnimationFrame(scrollAnimationFrame.current);
     if (scrollGlowTimer.current !== null) window.clearTimeout(scrollGlowTimer.current);
+    const scroller = document.scrollingElement as HTMLElement | null;
+    if (scroller && originalScrollBehavior.current !== null) scroller.style.scrollBehavior = originalScrollBehavior.current;
   }, []);
 
   const moveStep = (direction: -1 | 1) => {
