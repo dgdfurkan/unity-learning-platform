@@ -200,10 +200,14 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     window.scrollTo({ top: 0, behavior });
 
     scrollFallbackTimer.current = window.setTimeout(() => {
-      scroller.scrollTop = 0;
+      const scrollSurface = scroller as HTMLElement;
+      const previousBehavior = scrollSurface.style.scrollBehavior;
+      scrollSurface.style.scrollBehavior = 'auto';
+      scroller.scrollTo({ top: 0, behavior: 'auto' });
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
       document.querySelector<HTMLElement>('[data-lesson-top]')?.focus({ preventScroll: true });
+      requestAnimationFrame(() => { scrollSurface.style.scrollBehavior = previousBehavior; });
       scrollFallbackTimer.current = null;
     }, reduceMotion ? 0 : 640);
     scrollGlowTimer.current = window.setTimeout(() => {
