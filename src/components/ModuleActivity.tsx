@@ -530,6 +530,15 @@ export function ModuleActivity({ stepId, locale, onComplete }: { stepId: string;
         <div><span>{t(locale, config.eyebrow)}</span><h2 id={`${stepId}-title`}>{t(locale, config.title)}</h2><p>{t(locale, config.thesis)}</p></div>
         <div className="module-goal"><Icon name="gauge" /><p>{t(locale, config.goal)}</p></div>
       </header>
+      <section className="beginner-primer" aria-label={locale === 'tr' ? 'Sıfırdan kavram anlatımı' : 'Concept foundation from zero'}>
+        <header><span>{locale === 'tr' ? 'SIFIR BİLGİYLE BAŞLIYORUZ' : 'STARTING WITH ZERO ASSUMED KNOWLEDGE'}</span><h3>{locale === 'tr' ? 'Önce anlamını kur, sonra ekrandaki görevi çöz.' : 'Build meaning first, then solve the task.'}</h3><p>{locale === 'tr' ? 'Aşağıdaki dört basamak etkinliğin cevabını ezberletmez. Kavramın hangi ihtiyacı çözdüğünü ve kodun sonucunu nasıl değiştirdiğini gösterir.' : 'The four stages below do not give away the activity. They show which need the concept solves and how it changes the result.'}</p></header>
+        <div>
+          <article><b>01</b><span>{locale === 'tr' ? 'Bu nedir?' : 'What is it?'}</span><p>{t(locale, config.thesis)}</p></article>
+          <article><b>02</b><span>{locale === 'tr' ? 'Neden var?' : 'Why does it exist?'}</span><p>{t(locale, config.goal)}</p></article>
+          <article><b>03</b><span>{locale === 'tr' ? 'Oyunda nerede görürüm?' : 'Where does it appear in a game?'}</span><p>{t(locale, config.analogy)}</p></article>
+          <article><b>04</b><span>{locale === 'tr' ? 'Nasıl kanıtlarım?' : 'How do I prove it?'}</span><p>{locale === 'tr' ? 'Bir değeri değiştir, sonucu çalıştırmadan önce tahmin et ve gözlemlediğin farkı kendi cümlenle açıkla.' : 'Change one value, predict the result before running it, and explain the observed difference in your own words.'}</p></article>
+        </div>
+      </section>
       <div className="module-concept-grid">
         {config.concepts.map((concept, index) => <article key={`${concept.tag}-${index}`} style={{ '--delay': `${index * 90}ms` } as React.CSSProperties}><span>{concept.tag}</span><h3>{t(locale, concept.title)}</h3><p>{t(locale, concept.body)}</p>{concept.example && <code>{concept.example}</code>}</article>)}
       </div>
