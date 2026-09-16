@@ -157,9 +157,8 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   const [activeStepId, setActiveStepId] = useState('l1-brief');
   const [progress, setProgress] = useState<LearningProgress>(loadProgress);
   const [awardPulse, setAwardPulse] = useState<{ xp: number; title: string; streak: boolean } | null>(null);
-  const scrollAnimationFrame = useRef<number | null>(null);
   const scrollGlowTimer = useRef<number | null>(null);
-  const originalScrollBehavior = useRef<string | null>(null);
+  const scrollFallbackTimer = useRef<number | null>(null);
   const isAdmin = session.role === 'admin';
   const inLesson = !isAdmin && studentView === 'lesson';
   const selectedLesson = getLesson(selectedLessonId);
@@ -188,40 +187,25 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   };
 
   const scrollToLearningTop = () => {
-    if (scrollAnimationFrame.current !== null) cancelAnimationFrame(scrollAnimationFrame.current);
     if (scrollGlowTimer.current !== null) window.clearTimeout(scrollGlowTimer.current);
+    if (scrollFallbackTimer.current !== null) window.clearTimeout(scrollFallbackTimer.current);
     document.documentElement.classList.remove('learning-scroll');
     void document.documentElement.offsetWidth;
     document.documentElement.classList.add('learning-scroll');
 
     const scroller = document.scrollingElement ?? document.documentElement;
-    const scrollSurface = scroller as HTMLElement;
-    if (originalScrollBehavior.current === null) originalScrollBehavior.current = scrollSurface.style.scrollBehavior;
-    scrollSurface.style.scrollBehavior = 'auto';
-    const start = scroller.scrollTop || window.scrollY;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const duration = reduceMotion ? 0 : 560;
-    const startedAt = performance.now();
+    const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth';
+    scroller.scrollTo({ top: 0, behavior });
+    window.scrollTo({ top: 0, behavior });
 
-    const finish = () => {
+    scrollFallbackTimer.current = window.setTimeout(() => {
       scroller.scrollTop = 0;
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
       document.querySelector<HTMLElement>('[data-lesson-top]')?.focus({ preventScroll: true });
-      scrollSurface.style.scrollBehavior = originalScrollBehavior.current ?? '';
-      originalScrollBehavior.current = null;
-      scrollAnimationFrame.current = null;
-    };
-
-    const tick = (now: number) => {
-      const progress = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
-      const eased = 1 - Math.pow(1 - progress, 4);
-      scroller.scrollTop = Math.round(start * (1 - eased));
-      if (progress < 1) scrollAnimationFrame.current = requestAnimationFrame(tick);
-      else finish();
-    };
-
-    scrollAnimationFrame.current = requestAnimationFrame(tick);
+      scrollFallbackTimer.current = null;
+    }, reduceMotion ? 0 : 640);
     scrollGlowTimer.current = window.setTimeout(() => {
       document.documentElement.classList.remove('learning-scroll');
       scrollGlowTimer.current = null;
@@ -246,15 +230,13 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
 
   useEffect(() => {
     if (!inLesson) return;
-    const afterCommit = requestAnimationFrame(scrollToLearningTop);
-    return () => cancelAnimationFrame(afterCommit);
+    const afterCommit = window.setTimeout(scrollToLearningTop, 0);
+    return () => window.clearTimeout(afterCommit);
   }, [activeStepId, selectedLessonId, inLesson]);
 
   useEffect(() => () => {
-    if (scrollAnimationFrame.current !== null) cancelAnimationFrame(scrollAnimationFrame.current);
     if (scrollGlowTimer.current !== null) window.clearTimeout(scrollGlowTimer.current);
-    const scroller = document.scrollingElement as HTMLElement | null;
-    if (scroller && originalScrollBehavior.current !== null) scroller.style.scrollBehavior = originalScrollBehavior.current;
+    if (scrollFallbackTimer.current !== null) window.clearTimeout(scrollFallbackTimer.current);
   }, []);
 
   const moveStep = (direction: -1 | 1) => {
