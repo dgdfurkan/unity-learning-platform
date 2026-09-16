@@ -79,7 +79,7 @@ function structuralDiagnostics(source: string): CodeDiagnostic[] {
 
   source.split('\n').forEach((rawLine, index) => {
     const line = rawLine.replace(/\/\/.*$/, '').trim();
-    const declarationWithoutSemicolon = /^(?:\[SerializeField\]\s*)?(?:(?:public|private|protected|internal|static|readonly)\s+)*(?:bool|int|float|string|Rigidbody|Collider|Transform)\s+[A-Za-z_]\w*\s*=?.+/.test(line) && !/[;{}]$/.test(line);
+    const declarationWithoutSemicolon = /^(?:\[SerializeField\]\s*)?(?:(?:public|private|protected|internal|static|readonly)\s+)*(?:bool|int|float|string|Rigidbody|Collider|Transform|List<[^>]+>|[A-Za-z_]\w*\[\])\s+[A-Za-z_]\w*\s*=?.+/.test(line) && !/[;{}]$/.test(line);
     const logWithoutSemicolon = /\bDebug\.Log\s*\([^;]+\)$/.test(line);
     if (declarationWithoutSemicolon || logWithoutSemicolon) {
       results.push(diagnostic({ severity: 'error', code: 'CS1002', title: 'Noktalı virgül bekleniyor', explanation: 'C# bu ifadeyi bitmiş bir komut olarak okuyabilmek için satır sonunda `;` bekler.', fix: 'İfadenin sonuna `;` ekle.', line: index + 1, column: rawLine.length + 1 }));
@@ -169,6 +169,11 @@ export function validateLessonCode(lessonId: string, source: string, stepId?: st
     'lesson-2': ['packageCount', 'isGameActive', 'playerName'],
     'lesson-3': ['lives'],
     'lesson-5': ['playerRigidbody', 'other'],
+    'lesson-6': ['index'],
+    'lesson-7': ['inventory', 'item'],
+    'lesson-8': ['score', 'amount'],
+    'lesson-9': ['maxHealth', 'currentHealth', 'CurrentHealth'],
+    'lesson-10': ['maxHealth', 'currentHealth'],
   };
   const common = [...structuralDiagnostics(source), ...identifierDiagnostics(source, expectedIdentifiers[lessonId] ?? []), ...unityConventionDiagnostics(source, fileName)];
   const checks: Record<string, CodeDiagnostic[]> = {
@@ -192,6 +197,39 @@ export function validateLessonCode(lessonId: string, source: string, stepId?: st
     'lesson-5': [
       required(source, /\[SerializeField\]\s*private\s+Rigidbody\s+playerRigidbody\s*;/, 'ULP5001', 'Rigidbody alanı kapsüllenmiş', 'Referans Inspector’da görünürken dış sınıflara açık değildir.', '`[SerializeField] private Rigidbody playerRigidbody;` yaz.', 'playerRigidbody'),
       required(source, /void\s+OnTriggerEnter\s*\(\s*Collider\s+other\s*\)\s*{[\s\S]*?Debug\.Log\s*\(\s*other\.name\s*\)\s*;[\s\S]*?}/, 'ULP5002', 'Trigger callback’i doğru imzaya sahip', 'Unity callback imzası, parametre adı ve kullanım aynı sembolü gösteriyor.', '`void OnTriggerEnter(Collider other)` içine `Debug.Log(other.name);` yaz.', 'OnTriggerEnter'),
+    ],
+    'lesson-6': [
+      required(source, /\busing\s+UnityEngine\s*;/, 'ULP6001', '`UnityEngine` hazır', '`MonoBehaviour` ve `Debug` türleri erişilebilir durumda.', 'Dosyanın başına `using UnityEngine;` ekle.', 'using'),
+      required(source, /public\s+class\s+LoopPractice\s*:\s*MonoBehaviour/, 'ULP6002', '`LoopPractice` Component sınıfı hazır', 'Dosya adı, class adı ve `MonoBehaviour` bağlantısı tutarlı.', '`public class LoopPractice : MonoBehaviour` yaz.', 'LoopPractice'),
+      required(source, /for\s*\(\s*int\s+index\s*=\s*0\s*;\s*index\s*<\s*3\s*;\s*index\+\+\s*\)\s*{[\s\S]*?Debug\.Log\s*\(\s*index\s*\)\s*;[\s\S]*?}/, 'ULP6003', 'Üç turluk güvenli döngü kuruldu', 'Sayaç 0’dan başlar, 3’e ulaşmadan durur ve her turdaki aynı `index` değeri gözlemlenir.', '`for (int index = 0; index < 3; index++)` gövdesine `Debug.Log(index);` ekle.', 'for'),
+    ],
+    'lesson-7': [
+      required(source, /\busing\s+UnityEngine\s*;/, 'ULP7000', '`UnityEngine` hazır', '`MonoBehaviour` ve `Debug` türleri erişilebilir durumda.', 'Dosyanın başına `using UnityEngine;` ekle.', 'using'),
+      required(source, /\busing\s+System\.Collections\.Generic\s*;/, 'ULP7001', 'Generic koleksiyon namespace’i hazır', '`List<T>` türü bu namespace üzerinden bulunur.', 'Dosyaya `using System.Collections.Generic;` ekle.', 'using'),
+      required(source, /public\s+class\s+InventoryList\s*:\s*MonoBehaviour/, 'ULP7002', '`InventoryList` Component sınıfı hazır', 'Dosya ve ana class adı Unity beklentisiyle eşleşiyor.', '`public class InventoryList : MonoBehaviour` yaz.', 'InventoryList'),
+      required(source, /List\s*<\s*string\s*>\s+inventory\s*=\s*new\s+List\s*<\s*string\s*>\s*\(\s*\)\s*;/, 'ULP7003', 'String List instance’ı oluşturuldu', 'Alan yalnızca bildirilmedi; kullanılabilir boş bir List ile başlatıldı.', '`List<string> inventory = new List<string>();` yaz.', 'inventory'),
+      required(source, /inventory\.Add\s*\(\s*"[^"\n]+"\s*\)\s*;[\s\S]*inventory\.Add\s*\(\s*"[^"\n]+"\s*\)\s*;/, 'ULP7004', 'En az iki envanter öğesi eklendi', '`Add` çağrıları çalışma anındaki dinamik içeriği oluşturuyor.', 'Listeye iki farklı metni `inventory.Add("...");` ile ekle.', 'inventory.Add'),
+      required(source, /foreach\s*\(\s*string\s+item\s+in\s+inventory\s*\)\s*{[\s\S]*?Debug\.Log\s*\(\s*item\s*\)\s*;[\s\S]*?}/, 'ULP7005', 'Envanter güvenle dolaşılıyor', '`foreach` her geçerli öğeyi index sınırı kurmadan Console’a gönderiyor.', '`foreach (string item in inventory)` gövdesine `Debug.Log(item);` yaz.', 'foreach'),
+    ],
+    'lesson-8': [
+      required(source, /\busing\s+UnityEngine\s*;/, 'ULP8000', '`UnityEngine` hazır', '`MonoBehaviour` ve `Debug` türleri erişilebilir durumda.', 'Dosyanın başına `using UnityEngine;` ekle.', 'using'),
+      required(source, /public\s+class\s+ScoreCounter\s*:\s*MonoBehaviour/, 'ULP8001', '`ScoreCounter` tek sorumluluklu Component', 'Class adı skor sorumluluğunu açıkça ifade ediyor.', '`public class ScoreCounter : MonoBehaviour` yaz.', 'ScoreCounter'),
+      required(source, /private\s+int\s+score\s*(?:=\s*0\s*)?;/, 'ULP8002', 'Skor durumu private field’da', 'Skor instance boyunca yaşar ve dışarıdan doğrudan değiştirilemez.', '`private int score;` yaz.', 'score'),
+      required(source, /(?:public\s+)?void\s+AddPoints\s*\(\s*int\s+amount\s*\)\s*{[\s\S]*?score\s*\+=\s*amount\s*;[\s\S]*?Debug\.Log\s*\(\s*score\s*\)\s*;[\s\S]*?}/, 'ULP8003', '`AddPoints` skor kuralını yönetiyor', 'Parametre yalnızca çağrı girdisi; kalıcı skor field’ı tek metod üzerinden güncelleniyor.', '`void AddPoints(int amount)` içinde `score += amount;` ve `Debug.Log(score);` kullan.', 'AddPoints'),
+    ],
+    'lesson-9': [
+      required(source, /\busing\s+UnityEngine\s*;/, 'ULP9000', '`UnityEngine` hazır', '`MonoBehaviour` ve `SerializeField` türleri erişilebilir durumda.', 'Dosyanın başına `using UnityEngine;` ekle.', 'using'),
+      required(source, /public\s+class\s+PlayerConfig\s*:\s*MonoBehaviour/, 'ULP9001', '`PlayerConfig` Component sınıfı hazır', 'Dosya ve class adı aynı sorumluluğu gösteriyor.', '`public class PlayerConfig : MonoBehaviour` yaz.', 'PlayerConfig'),
+      required(source, /\[SerializeField\]\s*private\s+int\s+maxHealth\s*(?:=\s*\d+\s*)?;/, 'ULP9002', '`maxHealth` Inspector ayarı kapsüllenmiş', 'Tasarımcı değeri Inspector’dan değiştirebilir; diğer scriptler doğrudan yazamaz.', '`[SerializeField] private int maxHealth = 100;` yaz.', 'maxHealth'),
+      required(source, /private\s+int\s+currentHealth\s*;/, 'ULP9003', '`currentHealth` runtime durumu private', 'Çalışma zamanı verisi yalnızca sahibi tarafından değiştirilebilir.', '`private int currentHealth;` yaz.', 'currentHealth'),
+      required(source, /public\s+int\s+CurrentHealth\s*=>\s*currentHealth\s*;/, 'ULP9004', 'Read-only health API hazır', 'Dış sistemler değeri okuyabilir fakat setter olmadığı için doğrudan değiştiremez.', '`public int CurrentHealth => currentHealth;` yaz.', 'CurrentHealth'),
+    ],
+    'lesson-10': [
+      required(source, /\busing\s+UnityEngine\s*;/, 'ULP10000', '`UnityEngine` hazır', '`MonoBehaviour`, `Awake` ve `SerializeField` yapıları bu namespace ile kullanılabilir.', 'Dosyanın başına `using UnityEngine;` ekle.', 'using'),
+      required(source, /public\s+class\s+PrefabHealth\s*:\s*MonoBehaviour/, 'ULP10001', '`PrefabHealth` Component sınıfı hazır', 'Yeniden kullanılabilir sağlık davranışı ayrı bir Component’tir.', '`public class PrefabHealth : MonoBehaviour` yaz.', 'PrefabHealth'),
+      required(source, /\[SerializeField\]\s*private\s+int\s+maxHealth\s*=\s*100\s*;/, 'ULP10002', 'Prefab sağlık ayarı serialized', 'Prefab ve Variant’lar ortak başlangıç ayarını Inspector’dan yapılandırabilir.', '`[SerializeField] private int maxHealth = 100;` yaz.', 'maxHealth'),
+      required(source, /private\s+int\s+currentHealth\s*;/, 'ULP10003', 'Instance runtime sağlığı private', 'Her instance kendi çalışma zamanı değerini dış müdahaleden korur.', '`private int currentHealth;` yaz.', 'currentHealth'),
+      required(source, /void\s+Awake\s*\(\s*\)\s*{[\s\S]*?currentHealth\s*=\s*maxHealth\s*;[\s\S]*?}/, 'ULP10004', 'Her instance `Awake` içinde başlatılıyor', 'Prefab’dan doğan her Component, kendi runtime sağlığını yapılandırılmış max değerden alır.', '`Awake` içinde `currentHealth = maxHealth;` yaz.', 'Awake'),
     ],
   };
 

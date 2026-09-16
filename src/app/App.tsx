@@ -285,9 +285,9 @@ function LearningPath({ t, locale, expanded = false, onOpenLesson, onViewAll }: 
       <div className="section-heading"><div><p className="section-kicker">{t('quickStart')}</p><h2 id="path-title">{t('learningPath')}</h2></div><span>0 / 28</span></div>
       <p className="section-description">{t('pathDescription')}</p>
       <ol className="path-list">
-        {items.map((item) => { const available = item.order <= 5; return <li key={item.order} className={`path-item ${available ? 'ready' : 'locked'}`}><span className="path-node">{available ? String(item.order).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(item.title, locale)}</strong><small>{locale === 'tr' ? `Modül ${item.module} · ${item.duration} dakika` : `Module ${item.module} · ${item.duration} minutes`}</small></div>{available && <button type="button" onClick={() => onOpenLesson(`lesson-${item.order}`)} aria-label={`${localize(item.title, locale)} dersini aç`}><Icon name="chevron-right" /></button>}</li>; })}
+        {items.map((item) => { const available = item.order <= 10; return <li key={item.order} className={`path-item ${available ? 'ready' : 'locked'}`}><span className="path-node">{available ? String(item.order).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(item.title, locale)}</strong><small>{locale === 'tr' ? `Modül ${item.module} · ${item.duration} dakika` : `Module ${item.module} · ${item.duration} minutes`}</small></div>{available && <button type="button" onClick={() => onOpenLesson(`lesson-${item.order}`)} aria-label={`${localize(item.title, locale)} dersini aç`}><Icon name="chevron-right" /></button>}</li>; })}
       </ol>
-      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 5 ders hazır · toplam 28 ders' : 'First 5 lessons ready · 28 lessons total'}<Icon name="arrow-right" /></button>}
+      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 10 ders hazır · toplam 28 ders' : 'First 10 lessons ready · 28 lessons total'}<Icon name="arrow-right" /></button>}
     </section>
   );
 }
