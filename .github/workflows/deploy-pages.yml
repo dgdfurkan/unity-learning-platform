@@ -60,10 +60,8 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          LEVELUP_AUTH_PEPPER: ${{ secrets.LEVELUP_AUTH_PEPPER }}
-          LEVELUP_BOOTSTRAP_TOKEN: ${{ secrets.LEVELUP_BOOTSTRAP_TOKEN }}
           LEVELUP_ADMIN_PASSWORD: ${{ secrets.LEVELUP_ADMIN_PASSWORD }}
-        run: node -e "for (const key of ['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','LEVELUP_AUTH_PEPPER','LEVELUP_BOOTSTRAP_TOKEN','LEVELUP_ADMIN_PASSWORD']) if (!process.env[key]) process.exit(1)"
+        run: node -e "for (const key of ['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','LEVELUP_ADMIN_PASSWORD']) if (!process.env[key]) process.exit(1)"
       - name: Prepare Worker configuration
         env:
           CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
@@ -82,21 +80,21 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.133.0 deploy --config worker/wrangler.ci.toml
-      - name: Upload protected Worker secrets
+      - name: Generate protected secrets and create admin
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          LEVELUP_AUTH_PEPPER: ${{ secrets.LEVELUP_AUTH_PEPPER }}
-          LEVELUP_BOOTSTRAP_TOKEN: ${{ secrets.LEVELUP_BOOTSTRAP_TOKEN }}
-        run: |
-          printf '%s' "$LEVELUP_AUTH_PEPPER" | npx --yes wrangler@4.133.0 secret put AUTH_PEPPER --config worker/wrangler.ci.toml
-          printf '%s' "$LEVELUP_BOOTSTRAP_TOKEN" | npx --yes wrangler@4.133.0 secret put BOOTSTRAP_TOKEN --config worker/wrangler.ci.toml
-      - name: Create or update admin account
-        env:
           API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
           LEVELUP_ADMIN_USERNAME: ${{ vars.LEVELUP_ADMIN_USERNAME }}
           LEVELUP_ADMIN_PASSWORD: ${{ secrets.LEVELUP_ADMIN_PASSWORD }}
-          LEVELUP_BOOTSTRAP_TOKEN: ${{ secrets.LEVELUP_BOOTSTRAP_TOKEN }}
         run: |
+          if ! npx --yes wrangler@4.133.0 secret list --config worker/wrangler.ci.toml | grep -q 'AUTH_PEPPER'; then
+            AUTH_PEPPER="$(openssl rand -base64 48 | tr -d '\n')"
+            echo "::add-mask::$AUTH_PEPPER"
+            printf '%s' "$AUTH_PEPPER" | npx --yes wrangler@4.133.0 secret put AUTH_PEPPER --config worker/wrangler.ci.toml
+          fi
+          BOOTSTRAP_TOKEN="$(openssl rand -base64 48 | tr -d '\n')"
+          echo "::add-mask::$BOOTSTRAP_TOKEN"
+          printf '%s' "$BOOTSTRAP_TOKEN" | npx --yes wrangler@4.133.0 secret put BOOTSTRAP_TOKEN --config worker/wrangler.ci.toml
           node -e "require('node:fs').writeFileSync(process.env.RUNNER_TEMP + '/admin.json', JSON.stringify({username: process.env.LEVELUP_ADMIN_USERNAME || 'admin', password: process.env.LEVELUP_ADMIN_PASSWORD}))"
-          curl --fail-with-body --silent --show-error --request PUT "$API_BASE_URL/api/setup/admin" --header "Content-Type: application/json" --header "X-Setup-Token: $LEVELUP_BOOTSTRAP_TOKEN" --data-binary "@${RUNNER_TEMP}/admin.json"
+          curl --fail-with-body --silent --show-error --request PUT "$API_BASE_URL/api/setup/admin" --header "Content-Type: application/json" --header "X-Setup-Token: $BOOTSTRAP_TOKEN" --data-binary "@${RUNNER_TEMP}/admin.json"

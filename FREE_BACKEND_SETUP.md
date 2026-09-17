@@ -54,19 +54,9 @@ Aynı sayfadaki **Secrets** bölümüne şunları ekle:
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | İkinci adımda oluşturulan token |
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare hesap kimliği |
-| `LEVELUP_AUTH_PEPPER` | Parola özetlerini koruyan, en az 32 karakterlik rastgele değer |
-| `LEVELUP_BOOTSTRAP_TOKEN` | Admin kurulum rotasını koruyan, en az 32 karakterlik farklı rastgele değer |
 | `LEVELUP_ADMIN_PASSWORD` | Senin belirlediğin, en az 10 karakterlik admin şifresi |
 
-Rastgele gizli değerleri yerel terminalde üretmek için:
-
-```bash
-openssl rand -base64 48
-```
-
-Bu komutu iki kez çalıştır; iki çıktıyı birbirinin yerine kullanma. Değerleri hiçbir kaynak dosyasına yazma.
-
-`LEVELUP_AUTH_PEPPER` değerini ilk öğrenci hesabından sonra değiştirme. Değişmesi bütün mevcut parola özetlerini geçersiz kılar; zorunlu bir güvenlik rotasyonunda öğrencilerin parolalarını admin panelinden yeniden belirlemek gerekir.
+Parola pepper'ı ve geçici admin kurulum anahtarı GitHub Actions tarafından otomatik ve rastgele oluşturulur. Bunları terminalde üretmen veya GitHub'a elle eklemen gerekmez. Mevcut pepper sonraki dağıtımlarda korunur; kurulum anahtarıysa her dağıtımda otomatik yenilenir.
 
 ## 5. Tek dağıtımla etkinleştir
 
@@ -74,7 +64,7 @@ GitHub'da **Actions → Deploy to GitHub Pages → Run workflow** seçeneğini �
 
 1. D1 tablolarını oluşturur veya günceller.
 2. Worker API'yi dağıtır.
-3. Pepper ve kurulum anahtarını Worker secret olarak aktarır.
+3. Pepper ve kurulum anahtarını güvenli biçimde kendisi üretip Worker secret olarak aktarır.
 4. Admin hesabını oluşturur ya da GitHub'daki yeni parola ile günceller.
 5. Siteyi API adresi gömülmüş biçimde GitHub Pages'e yayınlar.
 
