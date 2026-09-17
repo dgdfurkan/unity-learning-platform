@@ -1,19 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Locale } from '../domain/models';
 import type { LessonStep } from '../learning/course';
 import { localize } from '../learning/course';
 import { Icon } from '../shared/Icon';
 import { hasSignatureExperience, SignatureExperience } from './SignatureExperience';
+import { StepProof, type ProofChallenge } from './StepProof';
 
-type Challenge = {
-  prompt: string;
-  options: string[];
-  answer: number;
-  explanation: string;
-  hint: string;
-};
-
-const challenges: Record<string, Challenge> = {
+const challenges: Record<string, ProofChallenge> = {
   'l1-welcome': { prompt:'Bir karakterin nasıl davranacağını anlamadan doğrudan kod satırlarına geçersek ne eksik kalır?', options:['Kodun hangi davranışı anlattığını kavramak zorlaşır','Kod öğrenmeye artık gerek kalmaz','Unity kod kullanmadan bütün oyunu kendisi hazırlar'], answer:0, explanation:'Kod, tasarladığımız davranışı bilgisayara anlatır. Davranışın parçalarını tanımadan yalnızca satırları ezberlemek, o satırların neden yazıldığını görmemizi zorlaştırır.', hint:'Bir tarifteki kelimeleri ezberlemekle yemeğin nasıl oluştuğunu anlamak aynı şey değildir.' },
   'l1-observe': { prompt:'Karakterin kalan enerjisi hangi görevdedir?', options:['Input','Durum','Output'], answer:1, explanation:'Enerji, oyunun o anda sakladığı ve kuralların okuyabildiği bir durum bilgisidir.', hint:'Oyunun hatırladığı bilgiyi ara.' },
   'l1-four-link': { prompt:'Doğru sistem sırası hangisidir?', options:['Output → durum → kural → input','Input → kural → durum → output','Kural → input → output → durum'], answer:1, explanation:'Oyuncu niyet gönderir, kural mevcut durumu değerlendirir, durum güncellenir ve sonuç gösterilir.', hint:'Sonuç, karar verilmeden önce oluşamaz.' },
@@ -179,12 +172,14 @@ function ExperienceStage({ step, bullets, onReady }: { step: LessonStep; bullets
   return <section className={`experience-stage experience-${mode}`}><header><span>UYGULAMA ALANI</span><h3>Bu bölümde kavramın ekrandaki karşılığını birlikte kuracağız.</h3><p>Her kontrol yeni bir kanıt gösteriyor; bütün parçalar tamamlandığında kısa değerlendirme açılıyor.</p></header><div className="mission-lab"><div className="mission-board"><small>GÖREV / {mode.toUpperCase()}</small><div className="mission-radar" aria-hidden="true"><i/><i/><span>{visited.size}</span></div><strong>{visited.size === bullets.length ? 'GÖREV HAZIR' : 'KANIT TOPLANIYOR'}</strong><p>{message}</p></div><ol>{bullets.map((bullet,index)=><li key={bullet}><button type="button" className={visited.has(index)?'done':''} onClick={()=>{mark(index);setMessage(bullet);}}><span>{visited.has(index)?'✓':index+1}</span><strong>{bullet}</strong></button></li>)}</ol></div></section>;
 }
 
-export function FoundationActivity({ step, locale, completed, onComplete }: { step: LessonStep; locale: Locale; completed: boolean; onComplete: () => void }) {
+export function FoundationActivity({ step, locale, completed, onComplete }: { step: LessonStep; locale: Locale; completed: boolean; onComplete: () => Promise<boolean> }) {
   const [explored, setExplored] = useState(false);
   const [selected, setSelected] = useState<number | null>(null);
   const [reflection, setReflection] = useState('');
   const [attempts, setAttempts] = useState(0);
+  const completionRequested = useRef(false);
   const challenge = challenges[step.id];
+  const proofVariant = Object.keys(challenges).indexOf(step.id);
   const bullets = localize(step.bullets, locale);
   const correct = selected === challenge?.answer;
   const needsReflection = step.kind === 'lab' || step.kind === 'debug' || step.kind === 'test' || step.kind === 'game';
@@ -195,6 +190,14 @@ export function FoundationActivity({ step, locale, completed, onComplete }: { st
     const reflectionPart = !needsReflection ? 1 : Math.min(1, reflection.trim().length / 20);
     return Math.round(((explorePart + answerPart + reflectionPart) / 3) * 100);
   }, [correct, explored, needsReflection, reflection]);
+
+  useEffect(() => {
+    if (!canComplete || completed || completionRequested.current) return;
+    completionRequested.current = true;
+    void onComplete().then((saved) => {
+      if (!saved) completionRequested.current = false;
+    });
+  }, [canComplete, completed, onComplete]);
 
   if (!challenge) return null;
 
@@ -225,19 +228,13 @@ export function FoundationActivity({ step, locale, completed, onComplete }: { st
         ? <SignatureExperience stepId={step.id} onReady={() => setExplored(true)} />
         : <ExperienceStage step={step} bullets={bullets} onReady={() => setExplored(true)} />}
 
-      <section className={explored ? 'challenge-stage ready' : 'challenge-stage locked'} aria-disabled={!explored}>
-        <div className="challenge-heading"><span className="stage-number">02</span><div><p className="section-kicker">KISA BİR KONTROL</p><h3>{challenge.prompt}</h3><p>{explored ? 'İlk düşünceni işaretleyebilirsin. Yanlış çıkarsa açıklama kaybolmaz ve yeniden deneyebilirsin.' : 'Bu soru, yukarıdaki deneyim tamamlandığında açılacak.'}</p></div></div>
-        <div className="challenge-options">
-          {challenge.options.map((option, index) => <button key={option} type="button" disabled={!explored || correct} className={selected === index ? (index === challenge.answer ? 'correct' : 'incorrect') : correct && index === challenge.answer ? 'correct' : ''} onClick={() => choose(index)}><b>{String.fromCharCode(65 + index)}</b><span>{option}</span>{selected === index && <Icon name={index === challenge.answer ? 'check' : 'close'} />}</button>)}
-        </div>
-        {selected !== null && <div className={correct ? 'foundation-feedback correct' : 'foundation-feedback incorrect'} role="status"><Icon name={correct ? 'check' : 'spark'} /><div><strong>{correct ? 'Kanıt doğru.' : 'Henüz değil; seçim hakkın devam ediyor.'}</strong><p>{correct ? challenge.explanation : challenge.hint}</p></div></div>}
-      </section>
+      <StepProof stepId={step.id} variant={proofVariant} challenge={challenge} enabled={explored} selected={selected} onChoose={choose} />
 
       {needsReflection && correct && <section className="reflection-stage"><span className="stage-number">03</span><div><p className="section-kicker">SEN NASIL AÇIKLARDIN?</p><h3>Kararın arkasındaki nedeni birkaç cümleyle anlatabilirsin.</h3><p>Burada kusursuz bir teknik tanım aranmıyor. Önemli olan, gördüğün sonuç ile verdiğin karar arasında kendi cümlenle bir bağ kurabilmen.</p><textarea value={reflection} onChange={(event) => setReflection(event.target.value)} placeholder="Ben bu seçimi yaptım çünkü…" maxLength={320} /><small>{reflection.trim().length} / 20 gerekli</small></div></section>}
 
       <footer className="foundation-complete">
-        <div><Icon name={completed ? 'check' : canComplete ? 'spark' : 'lock'} /><span><strong>{completed ? 'Bu adımı tamamladın.' : canComplete ? 'Öğrenme kanıtın hazır.' : 'Tamamlama için keşif ve uygulama gerekli.'}</strong><small>{attempts > 1 ? `${attempts} deneme · yanlışlar XP silmedi` : localize(step.transition, locale)}</small></span></div>
-        <button type="button" className="button button-primary" disabled={!canComplete || completed} onClick={onComplete}>{completed ? 'Tamamlandı' : 'İlerle'}<Icon name={completed ? 'check' : 'arrow-right'} /></button>
+        <div><Icon name={completed ? 'check' : canComplete ? 'spark' : 'lock'} /><span><strong>{completed ? `${step.xp} XP hesabına eklendi. Sonraki adıma geçebilirsin.` : canComplete ? 'Yanıt doğru; ilerlemen kaydediliyor.' : 'Tamamlama için keşif ve uygulama gerekli.'}</strong><small>{attempts > 1 ? `${attempts} deneme · yanlışlar XP silmedi` : localize(step.transition, locale)}</small></span></div>
+        <span className={completed ? 'auto-award-status saved' : canComplete ? 'auto-award-status saving' : 'auto-award-status'}><Icon name={completed ? 'check' : canComplete ? 'repeat' : 'lock'} />{completed ? 'Kaydedildi' : canComplete ? 'Kaydediliyor' : 'Henüz kilitli'}</span>
       </footer>
     </section>
   );

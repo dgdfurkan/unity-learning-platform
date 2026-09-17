@@ -2349,12 +2349,14 @@ function LessonWorkspace({
   const stageProgress = ((activeStepIndex + 1) / lesson.steps.length) * 100;
 
   const markStepComplete = async (targetStepId: string) => {
-    if (completedSteps.has(targetStepId) || savingStep) return;
+    if (completedSteps.has(targetStepId)) return true;
+    if (savingStep) return false;
     setSavingStep(true);
     const saved = await onCompleteStep(lesson.id, targetStepId);
     if (saved)
       setCompletedSteps((current) => new Set(current).add(targetStepId));
     setSavingStep(false);
+    return saved;
   };
 
   return (
