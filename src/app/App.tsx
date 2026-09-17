@@ -222,8 +222,10 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
 
   const openLesson = (lessonId: string) => {
     const lesson = getLesson(lessonId);
+    const completed = new Set(progress.completedSteps[lesson.id] ?? []);
+    const resumeStep = lesson.steps.find((step) => !completed.has(step.id)) ?? lesson.steps[lesson.steps.length - 1];
     setSelectedLessonId(lesson.id);
-    setActiveStepId(lesson.steps[0].id);
+    setActiveStepId(resumeStep.id);
     setStudentView('lesson');
     setMenuOpen(false);
     scrollToLearningTop();
