@@ -24,7 +24,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build application
+        run: npm run build
+        env:
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_APPCHECK_SITE_KEY: ${{ vars.VITE_FIREBASE_APPCHECK_SITE_KEY }}
+          VITE_FIREBASE_FUNCTIONS_REGION: ${{ vars.VITE_FIREBASE_FUNCTIONS_REGION }}
+          VITE_ADMIN_USERNAME: ${{ vars.VITE_ADMIN_USERNAME }}
+          VITE_ADMIN_EMAIL_DOMAIN: ${{ vars.VITE_ADMIN_EMAIL_DOMAIN }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -40,3 +52,41 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5
+
+  firebase:
+    if: ${{ vars.FIREBASE_PROJECT_ID != '' && vars.FIREBASE_ADMIN_UID != '' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm ci --prefix functions
+      - name: Validate protected Firebase settings
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_AUTH_PEPPER: ${{ secrets.FIREBASE_AUTH_PEPPER }}
+        run: node -e "if (!process.env.FIREBASE_SERVICE_ACCOUNT || !process.env.FIREBASE_AUTH_PEPPER) process.exit(1)"
+      - name: Prepare Firebase service account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node -e "require('node:fs').writeFileSync(process.env.RUNNER_TEMP + '/firebase-service-account.json', process.env.FIREBASE_SERVICE_ACCOUNT)"
+      - name: Build secure backend
+        run: npm run build:functions
+      - name: Update password pepper
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+          FIREBASE_AUTH_PEPPER: ${{ secrets.FIREBASE_AUTH_PEPPER }}
+        run: node -e "process.stdout.write(process.env.FIREBASE_AUTH_PEPPER)" | npx --yes firebase-tools@15.30.1 functions:secrets:set AUTH_PEPPER --data-file=- --project "${{ vars.FIREBASE_PROJECT_ID }}"
+      - name: Deploy functions and Firestore policy
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: npx --yes firebase-tools@15.30.1 deploy --project "${{ vars.FIREBASE_PROJECT_ID }}" --only functions,firestore:rules,firestore:indexes --non-interactive
+      - name: Apply the admin security claim
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: npm --prefix functions run set-admin -- "${{ vars.FIREBASE_ADMIN_UID }}" "${{ vars.VITE_ADMIN_USERNAME }}"

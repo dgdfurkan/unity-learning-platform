@@ -7,11 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "generate:functions-manifest": "node scripts/generate-curriculum-manifest.mjs",
+    "build:functions": "npm run generate:functions-manifest && npm --prefix functions run build",
+    "verify": "npm run typecheck && npm run build:functions && npm run build"
   },
   "dependencies": {
     "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "@fontsource-variable/manrope": "^5.3.0",
+    "firebase": "^12.19.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function provider() { return request.auth.token.firebase.sign_in_provider; }
+    function isAdmin() {
+      return signedIn()
+        && request.auth.token.role == 'admin'
+        && provider() == 'password'
+        && get(/databases/$(database)/documents/system/config).data.adminUid == request.auth.uid;
+    }
+    function validStudent(uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && request.auth.token.role == 'student'
+        && provider() == 'custom'
+        && get(/databases/$(database)/documents/users/$(uid)).data.status == 'active'
+        && get(/databases/$(database)/documents/users/$(uid)).data.sessionVersion == request.auth.token.sessionVersion;
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || validStudent(uid);
+      allow write: if false;
+      match /activityEvents/{eventId} { allow read: if isAdmin() || validStudent(uid); allow write: if false; }
+      match /assignments/{assignmentId} { allow read: if isAdmin() || validStudent(uid); allow write: if false; }
+      match /notifications/{notificationId} { allow read: if isAdmin() || validStudent(uid); allow write: if false; }
+    }
+    match /userProgress/{uid} { allow read: if isAdmin() || validStudent(uid); allow write: if false; }
+    match /usernames/{document=**} { allow read, write: if false; }
+    match /privateCredentials/{document=**} { allow read, write: if false; }
+    match /system/{document=**} { allow read, write: if false; }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
