@@ -14,6 +14,9 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+env:
+  LEVELUP_API_BASE_URL: https://levelup-academy-api.frkngndz60.workers.dev
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,7 +30,7 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_API_BASE_URL: ${{ env.LEVELUP_API_BASE_URL }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -45,7 +48,7 @@ jobs:
         uses: actions/deploy-pages@v5
 
   cloudflare:
-    if: ${{ vars.CLOUDFLARE_D1_DATABASE_ID != '' && vars.VITE_API_BASE_URL != '' }}
+    if: ${{ vars.CLOUDFLARE_D1_DATABASE_ID != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -84,7 +87,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          API_BASE_URL: ${{ env.LEVELUP_API_BASE_URL }}
           LEVELUP_ADMIN_USERNAME: ${{ vars.LEVELUP_ADMIN_USERNAME }}
           LEVELUP_ADMIN_PASSWORD: ${{ secrets.LEVELUP_ADMIN_PASSWORD }}
         run: |
@@ -97,4 +100,13 @@ jobs:
           echo "::add-mask::$BOOTSTRAP_TOKEN"
           printf '%s' "$BOOTSTRAP_TOKEN" | npx --yes wrangler@4.133.0 secret put BOOTSTRAP_TOKEN --config worker/wrangler.ci.toml
           node -e "require('node:fs').writeFileSync(process.env.RUNNER_TEMP + '/admin.json', JSON.stringify({username: process.env.LEVELUP_ADMIN_USERNAME || 'admin', password: process.env.LEVELUP_ADMIN_PASSWORD}))"
-          curl --fail-with-body --silent --show-error --request PUT "$API_BASE_URL/api/setup/admin" --header "Content-Type: application/json" --header "X-Setup-Token: $BOOTSTRAP_TOKEN" --data-binary "@${RUNNER_TEMP}/admin.json"
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail-with-body --silent --show-error --request PUT "$API_BASE_URL/api/setup/admin" --header "Content-Type: application/json" --header "X-Setup-Token: $BOOTSTRAP_TOKEN" --data-binary "@${RUNNER_TEMP}/admin.json"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 6 ]; then
+              echo "::error::Admin hesabı Worker üzerinde oluşturulamadı."
+              exit 1
+            fi
+            sleep $((attempt * 2))
+          done

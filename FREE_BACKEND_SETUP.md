@@ -41,10 +41,9 @@ Repo içinde **Settings → Secrets and variables → Actions → Variables** b�
 | Değişken | Değer |
 |---|---|
 | `CLOUDFLARE_D1_DATABASE_ID` | Birinci adımda kopyalanan D1 kimliği |
-| `VITE_API_BASE_URL` | `https://levelup-academy-api.<workers-subdomain>.workers.dev` |
 | `LEVELUP_ADMIN_USERNAME` | Örneğin `admin` |
 
-Workers alt alan adını Cloudflare Dashboard içindeki Workers ayarlarında görürsün. Worker adı repoda `levelup-academy-api` olarak sabittir.
+Canlı API adresi workflow içinde `https://levelup-academy-api.frkngndz60.workers.dev` olarak tanımlıdır. Bu nedenle ayrıca `VITE_API_BASE_URL` değişkeni oluşturman gerekmez. GitHub'da daha önce yanlış bir `VITE_API_BASE_URL` eklediysen silebilirsin; iş akışı artık onu kullanmaz.
 
 ## 4. GitHub Actions gizli değerlerini ekle
 
