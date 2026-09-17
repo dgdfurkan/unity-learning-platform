@@ -1,11 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { CodeEditor, type CodeFile } from '../components/CodeEditor';
-import { LessonActivity } from '../components/LessonActivity';
+import { FoundationActivity } from '../components/FoundationActivity';
 import { LessonFinale } from '../components/LessonFinale';
-import { ModuleActivity } from '../components/ModuleActivity';
 import type { CreateStudentInput, Locale, SessionUser, Student } from '../domain/models';
-import { coursePlan, getLesson, lessons, localize } from '../learning/course';
-import { type CodeDiagnostic, validateCSharpSyntax, validateLessonCode } from '../learning/codeValidation';
+import { coursePlan, getLesson, lessonIdForOrder, lessons, localize } from '../learning/course';
 import { awardStep, courseCompletion, loadProgress, type LearningProgress } from '../learning/progress';
 import { dataGateway } from '../services/demoGateway';
 import { Icon } from '../shared/Icon';
@@ -153,8 +150,8 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   const [studentView, setStudentView] = useState<StudentView>('home');
   const [adminView, setAdminView] = useState<AdminView>('overview');
   const [menuOpen, setMenuOpen] = useState(false);
-  const [selectedLessonId, setSelectedLessonId] = useState('lesson-1');
-  const [activeStepId, setActiveStepId] = useState('l1-brief');
+  const [selectedLessonId, setSelectedLessonId] = useState(lessons[0].id);
+  const [activeStepId, setActiveStepId] = useState(lessons[0].steps[0].id);
   const [progress, setProgress] = useState<LearningProgress>(loadProgress);
   const [awardPulse, setAwardPulse] = useState<{ xp: number; title: string; streak: boolean } | null>(null);
   const scrollGlowTimer = useRef<number | null>(null);
@@ -244,6 +241,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   }, []);
 
   const moveStep = (direction: -1 | 1) => {
+    if (direction === 1 && !(progress.completedSteps[selectedLesson.id] ?? []).includes(selectedLesson.steps[activeStepIndex].id)) return;
     const next = selectedLesson.steps[activeStepIndex + direction];
     if (next) selectStep(next.id);
   };
@@ -269,10 +267,10 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
         <div className="sidebar-brand"><Brand /><button type="button" className="sidebar-close icon-button" onClick={() => setMenuOpen(false)} aria-label={t('close')}><Icon name="close" /></button></div>
         {inLesson ? <>
           <button type="button" className="lesson-back-link" onClick={() => navigate('path')}><Icon name="arrow-right" />{locale === 'tr' ? 'Ders planına dön' : 'Back to course plan'}</button>
-          <div className="lesson-side-heading"><span>{locale === 'tr' ? `Ders ${selectedLesson.order} / 28` : `Lesson ${selectedLesson.order} / 28`}</span><strong>{localize(selectedLesson.title, locale)}</strong><small>{selectedLesson.steps.length} {locale === 'tr' ? 'öğrenme durağı' : 'learning stops'}</small></div>
+          <div className="lesson-side-heading"><span>{locale === 'tr' ? `Ders ${selectedLesson.order} / ${coursePlan.length}` : `Lesson ${selectedLesson.order} / ${coursePlan.length}`}</span><strong>{localize(selectedLesson.title, locale)}</strong><small>{selectedLesson.steps.length} {locale === 'tr' ? 'öğrenme durağı' : 'learning stops'}</small></div>
           <div className="side-progress"><i style={{ width: `${((activeStepIndex + 1) / selectedLesson.steps.length) * 100}%` }} /></div>
           <nav className="lesson-step-nav" aria-label={locale === 'tr' ? 'Ders adımları' : 'Lesson steps'}>
-            {selectedLesson.steps.map((step, index) => { const done = (progress.completedSteps[selectedLesson.id] ?? []).includes(step.id); return <button key={step.id} type="button" className={`${step.id === activeStepId ? 'lesson-step-link active' : 'lesson-step-link'}${done ? ' completed' : ''}`} onClick={() => selectStep(step.id)} aria-current={step.id === activeStepId ? 'step' : undefined}><span>{done ? <Icon name="check" /> : String(index + 1).padStart(2, '0')}</span><div><strong>{localize(step.title, locale)}</strong><small>{done ? (locale === 'tr' ? 'Tamamlandı' : 'Completed') : `${step.duration} ${locale === 'tr' ? 'dk.' : 'min.'}`}</small></div></button>; })}
+            {selectedLesson.steps.map((step, index) => { const done = (progress.completedSteps[selectedLesson.id] ?? []).includes(step.id); const previousDone = index === 0 || (progress.completedSteps[selectedLesson.id] ?? []).includes(selectedLesson.steps[index - 1].id); const accessible = previousDone || done || step.id === activeStepId; return <button key={step.id} type="button" disabled={!accessible} className={`${step.id === activeStepId ? 'lesson-step-link active' : 'lesson-step-link'}${done ? ' completed' : ''}${!accessible ? ' locked' : ''}`} onClick={() => selectStep(step.id)} aria-current={step.id === activeStepId ? 'step' : undefined}><span>{done ? <Icon name="check" /> : accessible ? String(index + 1).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(step.title, locale)}</strong><small>{done ? (locale === 'tr' ? 'Tamamlandı' : 'Completed') : accessible ? `${step.xp} XP` : (locale === 'tr' ? 'Önceki durağı tamamla' : 'Complete previous stop')}</small></div></button>; })}
           </nav>
         </> : <nav>
           {nav.map((item) => <button key={item.id} type="button" className={current === item.id ? 'nav-item active' : 'nav-item'} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}><Icon name={item.icon} /><span>{t(item.label)}</span></button>)}
@@ -300,7 +298,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
         </main>
       </div>
 
-      {inLesson ? <nav className="lesson-bottom-nav" aria-label={locale === 'tr' ? 'Ders adımı navigasyonu' : 'Lesson step navigation'}><button type="button" onClick={() => moveStep(-1)} disabled={activeStepIndex === 0}><Icon name="arrow-right" /><span>{locale === 'tr' ? 'Önceki' : 'Previous'}</span></button><button type="button" className="lesson-mobile-menu" onClick={() => setMenuOpen(true)}><span>{activeStepIndex + 1} / {selectedLesson.steps.length}</span><strong>{localize(selectedLesson.steps[activeStepIndex].title, locale)}</strong></button><button type="button" onClick={() => moveStep(1)} disabled={activeStepIndex === selectedLesson.steps.length - 1}><span>{locale === 'tr' ? 'Sonraki' : 'Next'}</span><Icon name="arrow-right" /></button></nav> : <nav className="bottom-nav" aria-label="Mobil navigasyon">
+      {inLesson ? <nav className="lesson-bottom-nav" aria-label={locale === 'tr' ? 'Ders adımı navigasyonu' : 'Lesson step navigation'}><button type="button" onClick={() => moveStep(-1)} disabled={activeStepIndex === 0}><Icon name="arrow-right" /><span>{locale === 'tr' ? 'Önceki' : 'Previous'}</span></button><button type="button" className="lesson-mobile-menu" onClick={() => setMenuOpen(true)}><span>{activeStepIndex + 1} / {selectedLesson.steps.length}</span><strong>{localize(selectedLesson.steps[activeStepIndex].title, locale)}</strong></button><button type="button" onClick={() => moveStep(1)} disabled={activeStepIndex === selectedLesson.steps.length - 1 || !(progress.completedSteps[selectedLesson.id] ?? []).includes(selectedLesson.steps[activeStepIndex].id)}><span>{locale === 'tr' ? 'Sonraki' : 'Next'}</span><Icon name="arrow-right" /></button></nav> : <nav className="bottom-nav" aria-label="Mobil navigasyon">
         {nav.map((item) => <button key={item.id} type="button" className={current === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}><Icon name={item.icon} /><span>{t(item.label)}</span></button>)}
       </nav>}
       {awardPulse && <div className="xp-burst" role="status"><div className="xp-particles" aria-hidden="true">{Array.from({ length: 8 }, (_, index) => <i key={index} />)}</div><span><Icon name="spark" /></span><div><small>{awardPulse.streak ? (locale === 'tr' ? 'Seri başladı · adım tamamlandı' : 'Streak started · step complete') : (locale === 'tr' ? 'Adım tamamlandı' : 'Step complete')}</small><strong>+{awardPulse.xp} XP</strong><p>{awardPulse.title}</p></div></div>}
@@ -324,13 +322,13 @@ function StudentDashboard({ t, locale, view, setView, lessonId, stepId, onStep, 
 
       <section className="focus-card" aria-labelledby="today-title">
         <div className="focus-main">
-          <div className="focus-meta"><span className="eyebrow"><Icon name="code" />{t('todayFocus')}</span><span>{locale === 'tr' ? 'Ders 01 / 28' : 'Lesson 01 / 28'}</span></div>
+          <div className="focus-meta"><span className="eyebrow"><Icon name="spark" />{t('todayFocus')}</span><span>{locale === 'tr' ? `Ders 01 / ${coursePlan.length}` : `Lesson 01 / ${coursePlan.length}`}</span></div>
           <h2 id="today-title">{localize(firstLesson.title, locale)}</h2>
           <p>{localize(firstLesson.summary, locale)}</p>
           <div className="lesson-progress" aria-label={locale === 'tr' ? 'Ders ilerlemesi' : 'Lesson progress'}><span style={{ width: `${((progress.completedSteps[firstLesson.id]?.length ?? 0) / firstLesson.steps.length) * 100}%` }} /></div>
           <div className="focus-actions"><button className="button button-primary" type="button" onClick={() => onOpenLesson(firstLesson.id)}>{(progress.completedSteps[firstLesson.id]?.length ?? 0) ? (locale === 'tr' ? 'Derse devam et' : 'Continue lesson') : (locale === 'tr' ? 'İlk derse başla' : 'Start the first lesson')}<Icon name="arrow-right" /></button><span>{firstLesson.steps.length} {locale === 'tr' ? 'öğrenme durağı' : 'learning stops'}</span></div>
         </div>
-        <div className="focus-visual" aria-hidden="true"><div className="mini-editor"><span>void Start()</span><span>Debug.Log("Unity hazır");</span><i /><strong>Console: Unity hazır</strong></div><img src="./images/nova-mascot.webp" width="196" height="235" alt="" /></div>
+        <div className="focus-visual" aria-hidden="true"><div className="mini-editor system-flow-preview"><span>INPUT</span><span>KURAL</span><span>DURUM</span><strong>OUTPUT</strong></div><img src="./images/nova-mascot.webp" width="196" height="235" alt="" /></div>
       </section>
 
       <div className="metric-grid">
@@ -342,7 +340,7 @@ function StudentDashboard({ t, locale, view, setView, lessonId, stepId, onStep, 
         <LearningPath t={t} locale={locale} onOpenLesson={onOpenLesson} onViewAll={() => setView('path')} progress={progress} />
         <section className="project-card" aria-labelledby="project-title">
           <div className="project-image project-blank"><div><Icon name="project" /><span>UNITY</span></div><b>{locale === 'tr' ? 'Proje alanı' : 'Project space'}</b></div>
-          <div className="project-copy"><p className="section-kicker">{locale === 'tr' ? 'Derslerle birlikte' : 'Alongside lessons'}</p><h2 id="project-title">{locale === 'tr' ? 'Kendi oyun projen adım adım oluşacak.' : 'Your own game project will take shape step by step.'}</h2><p>{locale === 'tr' ? 'Proje türü öğrenci hedefi ve ilk tanılama sonucuna göre seçilecek; platform tek bir örnek oyuna bağlı değildir.' : 'The project type will be selected from the learner’s goals and initial assessment; the platform is not tied to one sample game.'}</p><button type="button" className="text-button" onClick={() => setView('path')}>{locale === 'tr' ? '28 derslik planı gör' : 'View the 28-lesson plan'}<Icon name="arrow-right" /></button></div>
+          <div className="project-copy"><p className="section-kicker">{locale === 'tr' ? '17 modül · 102 ders' : '17 modules · 102 lessons'}</p><h2 id="project-title">{locale === 'tr' ? 'Sıfır bilgiden yayınlanabilir oyuna.' : 'From zero knowledge to a publishable game.'}</h2><p>{locale === 'tr' ? 'Her büyük kavram kendi dersinde; 2D ve 3D dikey dilimler, test, performans, Git ve final proje aynı yolun parçaları.' : 'Each major concept has its own lesson, followed by 2D and 3D vertical slices, testing, performance, Git, and a final project.'}</p><button type="button" className="text-button" onClick={() => setView('path')}>{locale === 'tr' ? '102 derslik müfredatı gör' : 'View the 102-lesson curriculum'}<Icon name="arrow-right" /></button></div>
         </section>
       </div>
     </div>
@@ -353,12 +351,12 @@ function LearningPath({ t, locale, expanded = false, onOpenLesson, onViewAll, pr
   const items = expanded ? coursePlan : coursePlan.slice(0, 5);
   return (
     <section className={expanded ? 'path-panel path-page enter-view' : 'path-panel'} aria-labelledby="path-title">
-      <div className="section-heading"><div><p className="section-kicker">{t('quickStart')}</p><h2 id="path-title">{t('learningPath')}</h2></div><span>{progress.completedLessons.length} / 28</span></div>
+      <div className="section-heading"><div><p className="section-kicker">{t('quickStart')}</p><h2 id="path-title">{t('learningPath')}</h2></div><span>{progress.completedLessons.length} / {coursePlan.length}</span></div>
       <p className="section-description">{t('pathDescription')}</p>
       <ol className="path-list">
-        {items.map((item) => { const available = item.order <= 10; const done = progress.completedLessons.includes(`lesson-${item.order}`); return <li key={item.order} className={`path-item ${available ? 'ready' : 'locked'}${done ? ' completed' : ''}`}><span className="path-node">{done ? <Icon name="check" /> : available ? String(item.order).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(item.title, locale)}</strong><small>{done ? (locale === 'tr' ? 'Tamamlandı · rozet kazanıldı' : 'Completed · badge earned') : (locale === 'tr' ? `Modül ${item.module} · ${available ? 'etkileşimli öğrenme rotası' : 'yakında'}` : `Module ${item.module} · ${available ? 'interactive learning route' : 'coming soon'}`)}</small></div>{available && <button type="button" onClick={() => onOpenLesson(`lesson-${item.order}`)} aria-label={`${localize(item.title, locale)} dersini aç`}><Icon name="chevron-right" /></button>}</li>; })}
+        {items.map((item) => { const lessonId = lessonIdForOrder(item.order); const priorId = lessonIdForOrder(item.order - 1); const published = Boolean(lessonId); const unlocked = item.order === 1 || (priorId ? progress.completedLessons.includes(priorId) : false); const available = published && unlocked; const done = lessonId ? progress.completedLessons.includes(lessonId) : false; return <li key={item.order} className={`path-item ${available ? 'ready' : 'locked'}${done ? ' completed' : ''}`}><span className="path-node">{done ? <Icon name="check" /> : available ? String(item.order).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(item.title, locale)}</strong><small>{done ? (locale === 'tr' ? 'Tamamlandı · rozet kazanıldı' : 'Completed · badge earned') : published && !unlocked ? (locale === 'tr' ? `Modül ${item.module} · önceki dersi tamamla` : `Module ${item.module} · complete the previous lesson`) : (locale === 'tr' ? `Modül ${item.module} · ${available ? 'oynanabilir ders hazır' : 'içerik hazırlanıyor'}` : `Module ${item.module} · ${available ? 'playable lesson ready' : 'content in preparation'}`)}</small></div>{available && lessonId && <button type="button" onClick={() => onOpenLesson(lessonId)} aria-label={`${localize(item.title, locale)} dersini aç`}><Icon name="chevron-right" /></button>}</li>; })}
       </ol>
-      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 10 ders hazır · toplam 28 ders' : 'First 10 lessons ready · 28 lessons total'}<Icon name="arrow-right" /></button>}
+      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 3 ders oynanabilir · toplam 102 ders' : 'First 3 lessons playable · 102 lessons total'}<Icon name="arrow-right" /></button>}
     </section>
   );
 }
@@ -488,45 +486,12 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack, progress, o
   const lesson = getLesson(lessonId);
   const activeStepIndex = Math.max(0, lesson.steps.findIndex((step) => step.id === stepId));
   const activeStep = lesson.steps[activeStepIndex];
-  const [checking, setChecking] = useState(false);
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(() => new Set(progress.completedSteps[lesson.id] ?? []));
-  const [masteryPrimed, setMasteryPrimed] = useState<Set<string>>(new Set());
-  type StepWorkspace = { files: CodeFile[]; activeFileId: string; results: CodeDiagnostic[] | null };
-  const makeWorkspace = (targetStepId: string): StepWorkspace => {
-    const id = `${lesson.id}-${targetStepId}-primary`;
-    return { files: [{ id, name: lesson.fileName, content: '' }], activeFileId: id, results: null };
-  };
-  const makeLessonWorkspaces = () => Object.fromEntries(lesson.steps.map((step) => [step.id, makeWorkspace(step.id)]));
-  const [workspaces, setWorkspaces] = useState<Record<string, StepWorkspace>>(makeLessonWorkspaces);
-  const workspace = workspaces[activeStep.id] ?? makeWorkspace(activeStep.id);
 
   useEffect(() => {
-    setWorkspaces(makeLessonWorkspaces());
-    setChecking(false);
     setCompletedSteps(new Set(progress.completedSteps[lesson.id] ?? []));
-    setMasteryPrimed(new Set());
   }, [lesson.id]);
-
-  const updateWorkspace = (update: (current: StepWorkspace) => StepWorkspace) => {
-    setWorkspaces((current) => ({ ...current, [activeStep.id]: update(current[activeStep.id] ?? makeWorkspace(activeStep.id)) }));
-  };
-
-  const runChecks = async () => {
-    setChecking(true);
-    await new Promise((resolve) => window.setTimeout(resolve, 460));
-    const current = workspaces[activeStep.id] ?? makeWorkspace(activeStep.id);
-    const primary = current.files[0];
-    const results = [
-      ...validateLessonCode(lesson.id, primary.content, activeStep.id, primary.name),
-      ...current.files.slice(1).flatMap((file) => validateCSharpSyntax(file.content, file.name)),
-    ];
-    updateWorkspace((value) => ({ ...value, results }));
-    setChecking(false);
-  };
-  const passed = Boolean(workspace.results?.some((result) => result.severity === 'success')) && !workspace.results?.some((result) => result.severity !== 'success');
-  const activityKind = activeStep.activity;
-  const isCodeStep = !activityKind || activityKind === 'code';
-  const stepComplete = isCodeStep ? passed || completedSteps.has(activeStep.id) : completedSteps.has(activeStep.id);
+  const stepComplete = completedSteps.has(activeStep.id);
   const isFinalStep = activeStepIndex === lesson.steps.length - 1;
   const stageProgress = ((activeStepIndex + 1) / lesson.steps.length) * 100;
 
@@ -539,22 +504,16 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack, progress, o
     });
   };
 
-  useEffect(() => {
-    if (passed) markStepComplete(activeStep.id);
-  }, [passed, activeStep.id]);
-
   return (
     <div className="lesson-page enter-view" data-lesson-top tabIndex={-1}>
       <button className="back-button" type="button" onClick={onBack}><Icon name="arrow-right" />{locale === 'tr' ? 'Ders planına dön' : 'Back to course plan'}</button>
-      <div className="lesson-heading"><div><p className="section-kicker">{locale === 'tr' ? `Ders ${lesson.order} / 28 · Öğrenme laboratuvarı` : `Lesson ${lesson.order} / 28 · Learning laboratory`}</p><h1>{localize(lesson.title, locale)}</h1><p>{localize(lesson.summary, locale)}</p></div><div className="lesson-reward-summary"><span><Icon name="spark" /><b>{progress.xp}</b><small>XP</small></span><span><Icon name="repeat" /><b>{progress.streak}</b><small>{locale === 'tr' ? 'seri' : 'streak'}</small></span></div></div>
+      <div className="lesson-heading"><div><p className="section-kicker">{locale === 'tr' ? `Ders ${lesson.order} / ${coursePlan.length} · Öğrenme laboratuvarı` : `Lesson ${lesson.order} / ${coursePlan.length} · Learning laboratory`}</p><h1>{localize(lesson.title, locale)}</h1><p>{localize(lesson.summary, locale)}</p></div><div className="lesson-reward-summary"><span><Icon name="spark" /><b>{progress.xp}</b><small>XP</small></span><span><Icon name="repeat" /><b>{progress.streak}</b><small>{locale === 'tr' ? 'seri' : 'streak'}</small></span></div></div>
       <div className="lesson-stage-progress"><span><strong>{String(activeStepIndex + 1).padStart(2, '0')}</strong> / {String(lesson.steps.length).padStart(2, '0')}</span><div><i style={{ width: `${stageProgress}%` }} /></div><small>{localize(activeStep.title, locale)}</small></div>
-      <div key={activeStep.id} className={isCodeStep ? 'lesson-workbench lesson-step-transition' : 'lesson-workbench activity-mode lesson-step-transition'}>
+      <div key={activeStep.id} className="lesson-workbench activity-mode foundation-mode lesson-step-transition">
         <aside className="lesson-guidance">
-          <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'practice' ? 'code' : activeStep.kind === 'reflect' ? 'repeat' : 'book'} /><span>{activeStep.duration} {locale === 'tr' ? 'dakika' : 'minutes'}</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki adım' : 'Current step'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul>{activeStep.details && <div className="lesson-detail-list">{localize(activeStep.details, locale).map((detail) => <article key={detail.title}><strong>{detail.title}</strong><TechnicalText text={detail.body} /></article>)}</div>}</section>
-          {isCodeStep && <section className="lesson-task-card"><p className="section-kicker">{locale === 'tr' ? 'Bu adımdaki kod görevi' : 'Coding task for this step'}</p><h3>{localize(activeStep.editorTitle ?? activeStep.title, locale)}</h3><TechnicalText text={localize(activeStep.editorTask ?? activeStep.description, locale)} /><div className="from-scratch-note"><Icon name="code" /><span>{locale === 'tr' ? 'Dosya bilinçli olarak boş açılır. Hazır iskeleti kopyalamadan, yapıyı adım adım sen kurarsın.' : 'The file deliberately opens blank. You build it step by step without copying a prepared skeleton.'}</span></div><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>}
-          {isCodeStep && passed && <div className="lesson-success"><Icon name="check" /><p>{localize(lesson.successMessage, locale)}</p></div>}
+          <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'game' ? 'spark' : activeStep.kind === 'debug' ? 'repeat' : activeStep.kind === 'lab' ? 'project' : 'book'} /><span>{activeStep.xp} XP</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki öğrenme durağı' : 'Current learning stop'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><div className="step-objective"><span>Bu adımın kanıtı</span><strong>{localize(activeStep.objective, locale)}</strong></div><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
         </aside>
-          {isCodeStep ? <CodeEditor locale={locale} files={workspace.files} activeFileId={workspace.activeFileId} diagnostics={workspace.results} checking={checking} onSelectFile={(fileId) => updateWorkspace((value) => ({ ...value, activeFileId: fileId }))} onAddFile={() => updateWorkspace((value) => { const used = new Set(value.files.map((file) => file.name)); let number = 1; let name = 'NewScript.cs'; while (used.has(name)) { number += 1; name = `NewScript${number}.cs`; } const file = { id: `${activeStep.id}-${crypto.randomUUID()}`, name, content: '' }; return { ...value, files: [...value.files, file], activeFileId: file.id, results: null }; })} onDeleteFile={(fileId) => updateWorkspace((value) => { if (value.files.length === 1) return value; const index = value.files.findIndex((file) => file.id === fileId); const files = value.files.filter((file) => file.id !== fileId); const activeFileId = value.activeFileId === fileId ? files[Math.max(0, index - 1)]!.id : value.activeFileId; return { ...value, files, activeFileId, results: null }; })} onChange={(fileId, content) => updateWorkspace((value) => ({ ...value, files: value.files.map((file) => file.id === fileId ? { ...file, content } : file), results: null }))} onRun={runChecks} onReset={() => setWorkspaces((current) => ({ ...current, [activeStep.id]: makeWorkspace(activeStep.id) }))} /> : activeStep.activity === 'mastery' && isFinalStep ? <div className="finale-stack">{activeStep.id.startsWith('l1-') ? <LessonActivity key={`${activeStep.id}-prep`} kind={activityKind} locale={locale} onComplete={() => setMasteryPrimed((current) => new Set(current).add(activeStep.id))} /> : <ModuleActivity key={`${activeStep.id}-prep`} stepId={activeStep.id} locale={locale} onComplete={() => setMasteryPrimed((current) => new Set(current).add(activeStep.id))} />}{(masteryPrimed.has(activeStep.id) || completedSteps.has(activeStep.id)) && <LessonFinale lesson={lesson} locale={locale} onComplete={() => markStepComplete(activeStep.id)} />}</div> : activeStep.id.startsWith('l1-') ? <LessonActivity key={activeStep.id} kind={activityKind} locale={locale} onComplete={() => markStepComplete(activeStep.id)} /> : <ModuleActivity key={activeStep.id} stepId={activeStep.id} locale={locale} onComplete={() => markStepComplete(activeStep.id)} />}
+        {isFinalStep ? <LessonFinale lesson={lesson} locale={locale} onComplete={() => markStepComplete(activeStep.id)} onReview={onStep} /> : <FoundationActivity step={activeStep} locale={locale} completed={stepComplete} onComplete={() => markStepComplete(activeStep.id)} />}
       </div>
       <div className="lesson-step-actions"><button className="button button-secondary" type="button" disabled={activeStepIndex === 0} onClick={() => onStep(lesson.steps[activeStepIndex - 1].id)}><Icon name="arrow-right" />{locale === 'tr' ? 'Önceki adım' : 'Previous step'}</button><span>{activeStepIndex + 1} / {lesson.steps.length}{!stepComplete && ` · ${locale === 'tr' ? 'Etkinliği tamamla' : 'Complete the activity'}`}</span>{activeStepIndex === lesson.steps.length - 1 ? <button className="button button-primary" type="button" disabled={!stepComplete} onClick={onBack}>{locale === 'tr' ? 'Rozeti al ve ders haritasına dön' : 'Claim badge and return to the path'}<Icon name="arrow-right" /></button> : <button className="button button-primary" type="button" disabled={!stepComplete} onClick={() => onStep(lesson.steps[activeStepIndex + 1].id)}>{locale === 'tr' ? 'Sonraki adım' : 'Next step'}<Icon name="arrow-right" /></button>}</div>
     </div>
@@ -567,8 +526,4 @@ function MasteryBar({ label, value }: { label: string; value: number }) {
 
 function SimplePlaceholder({ icon, title, body }: { icon: Parameters<typeof Icon>[0]['name']; title: string; body: string }) {
   return <section className="placeholder-page enter-view"><span className="metric-icon violet"><Icon name={icon} /></span><h1>{title}</h1><p>{body}</p><small>Bu yüzey sonraki dikey dilimde gerçek veri akışıyla tamamlanacak.</small></section>;
-}
-
-function TechnicalText({ text }: { text: string }) {
-  return <span className="technical-text">{text.split('`').map((part, index) => index % 2 ? <code key={`${part}-${index}`}>{part}</code> : part)}</span>;
 }

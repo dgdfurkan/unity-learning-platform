@@ -15,7 +15,7 @@ export interface AwardResult {
   streakAdvanced: boolean;
 }
 
-const STORAGE_KEY = 'levelup-learning-progress-v2';
+const STORAGE_KEY = 'levelup-learning-progress-v3-foundations';
 
 export const emptyProgress: LearningProgress = {
   xp: 0,
@@ -60,14 +60,8 @@ export function saveProgress(progress: LearningProgress) {
 }
 
 export function stepXp(step: LessonStep, isLastStep = false): number {
-  if (step.activity === 'mastery' && isLastStep) return 160;
-  if (step.activity === 'mastery') return 35;
-  if (step.activity === 'code') return 50;
-  if (step.kind === 'practice') return 30;
-  if (step.kind === 'observe') return 24;
-  if (step.kind === 'learn') return 22;
-  if (step.kind === 'reflect') return 40;
-  return 18;
+  void isLastStep;
+  return step.xp;
 }
 
 export function awardStep(progress: LearningProgress, lessonId: string, step: LessonStep, isLastStep: boolean): AwardResult {

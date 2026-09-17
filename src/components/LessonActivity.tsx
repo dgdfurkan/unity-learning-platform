@@ -12,7 +12,7 @@ interface LessonActivityProps {
 const copy = (locale: Locale, tr: string, en: string) => locale === 'tr' ? tr : en;
 
 export function LessonActivity({ kind, locale, onComplete }: LessonActivityProps) {
-  const components: Record<Exclude<LessonActivityKind, 'code'>, React.ReactNode> = {
+  const components: Partial<Record<Exclude<LessonActivityKind, 'code'>, React.ReactNode>> = {
     brief: <Brief locale={locale} onComplete={onComplete} />,
     hotspot: <Hotspot locale={locale} onComplete={onComplete} />,
     reveal: <Reveal locale={locale} onComplete={onComplete} />,
@@ -28,7 +28,7 @@ export function LessonActivity({ kind, locale, onComplete }: LessonActivityProps
     console: <ConsoleDetective locale={locale} onComplete={onComplete} />,
     mastery: <Mastery locale={locale} onComplete={onComplete} />,
   };
-  return <section className="activity-studio">{components[kind]}</section>;
+  return <section className="activity-studio">{components[kind] ?? null}</section>;
 }
 
 function ActivityHeader({ eyebrow, title, body, progress }: { eyebrow: string; title: string; body: string; progress?: string }) {

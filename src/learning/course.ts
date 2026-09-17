@@ -1,24 +1,25 @@
 import type { Locale } from '../domain/models';
 
-export type LessonStepKind = 'prepare' | 'learn' | 'observe' | 'practice' | 'reflect';
-export type LessonActivityKind = 'brief' | 'hotspot' | 'reveal' | 'match' | 'order' | 'sequence' | 'fill' | 'inspector' | 'predict' | 'spot' | 'debug' | 'sort' | 'console' | 'code' | 'mastery';
+export type LessonStepKind = 'prepare' | 'teach' | 'observe' | 'practice' | 'simulate' | 'debug' | 'lab' | 'game' | 'test' | 'finale';
+export type LessonActivityKind = 'reveal' | 'classify' | 'order' | 'connect' | 'decide' | 'simulate' | 'match' | 'checklist' | 'debug' | 'lab' | 'game' | 'finale' | 'brief' | 'hotspot' | 'sequence' | 'fill' | 'inspector' | 'predict' | 'spot' | 'sort' | 'console' | 'code' | 'mastery';
 
 export interface LessonStep {
   id: string;
   kind: LessonStepKind;
   duration: number;
+  xp: number;
   title: Record<Locale, string>;
   description: Record<Locale, string>;
+  objective: Record<Locale, string>;
   bullets: Record<Locale, string[]>;
-  editorTitle?: Record<Locale, string>;
-  editorTask?: Record<Locale, string>;
-  details?: Record<Locale, { title: string; body: string }[]>;
-  activity?: LessonActivityKind;
+  transition: Record<Locale, string>;
+  activity: LessonActivityKind;
 }
 
 export interface Lesson {
   id: string;
   order: number;
+  module: number;
   duration: number;
   title: Record<Locale, string>;
   summary: Record<Locale, string>;
@@ -29,6 +30,8 @@ export interface Lesson {
   concepts: string[];
   starterCode: string;
   steps: LessonStep[];
+  badge: Record<Locale, { name: string; description: string }>;
+  status: 'published' | 'preparing';
 }
 
 export interface CoursePlanItem {
@@ -36,252 +39,211 @@ export interface CoursePlanItem {
   module: number;
   duration: number;
   title: Record<Locale, string>;
+  outcome?: Record<Locale, string>;
+  artifact?: Record<Locale, string>;
+  status: 'published' | 'preparing';
 }
 
-const text = (tr: string, en: string): Record<Locale, string> => ({ tr, en });
-const list = (tr: string[], en: string[]): Record<Locale, string[]> => ({ tr, en });
+const text = (tr: string, en = tr): Record<Locale, string> => ({ tr, en });
+const list = (tr: string[], en = tr): Record<Locale, string[]> => ({ tr, en });
 
 export const localize = <T>(value: Record<Locale, T>, locale: Locale): T => value[locale];
 
+type StepInput = [string, LessonStepKind, LessonActivityKind, number, number, string, string, string, string[], string];
+const step = ([id, kind, activity, duration, xp, title, description, objective, bullets, transition]: StepInput): LessonStep => ({
+  id, kind, activity, duration, xp, title: text(title), description: text(description), objective: text(objective), bullets: list(bullets), transition: text(transition),
+});
+
+const lesson1Steps: LessonStep[] = [
+  step(['l1-welcome','prepare','reveal',4,20,'Bugün kod yazmadan kodu anlayacağız','Kod, oyunu düşünmenin başlangıcı değil; açıkça düşündüğümüz davranışı bilgisayara aktarma aracıdır. Önce görünmeyen sistemi kuracağız.','Dersin ritmini ve hata yapmanın öğrenmedeki yerini açıklar.',['Gör → tahmin et → dene → açıkla','Hata, başarısızlık değil yeni kanıttır','Bu derste C# sözdizimi ezberlenmez'],'Önce ekrandaki sonucu izleyecek, sonra görünmeyen nedeni arayacağız.']),
+  step(['l1-observe','observe','classify',6,30,'Ekrandaki sonucun izini sür','Sağ oka basılması, karakterin hareketi, enerjinin azalması ve sesin çalması aynı anda görünse de aynı görev değildir.','Görünür sonuç ile onu oluşturan nedenleri ayırır.',['Tuş oyuncudan gelen girdidir','Enerji oyunun sakladığı durumdur','Hareket, görüntü ve ses oyuncuya ulaşan sonuçlardır'],'Bu olayları her oyunda kullanabileceğimiz dört halkaya dönüştürelim.']),
+  step(['l1-four-link','teach','order',8,35,'Dört halkalı oyun zinciri','Oyuncu bir şey yapar; oyun kuralı mevcut bilgiyi kontrol eder; durum değişir veya korunur; sonuç oyuncuya gösterilir.','Input → kural → durum → output sırasını iki farklı senaryoda kurar.',['Input niyeti taşır','Kural karar verir','Durum hafızadır','Output kararı görünür kılar'],'İlk halka olan input’u, sonuçtan özellikle ayıracağız.']),
+  step(['l1-input','simulate','connect',6,35,'Input niyettir, sonuç değildir','Aynı Space tuşu bir oyunda zıplama, başka bir oyunda konuşmayı ilerletme olabilir. Tuşun anlamını oyun kuralı verir.','Fiziksel kontrol ile oyundaki niyeti ayırır.',['Klavye, dokunma ve gamepad farklı sinyaller üretir','Farklı cihazlar aynı “Zıpla” niyetine bağlanabilir','Cihazı doğrudan konuma bağlamak kuralı atlar'],'Niyet geldi; fakat oyun bu isteği her zaman kabul etmek zorunda değil.']),
+  step(['l1-rule','practice','decide',7,35,'Kural hangi durumda ne olacağını seçer','Zıpla girdisi tek başına yeterli değildir. Karakter yerdeyse zıplar; havadaysa kural isteği reddedebilir.','Girdi ile mevcut durumu birlikte değerlendirerek sonuç seçer.',['Kural yalnızca ceza koymaz','Bir input her zaman durum değişikliği üretmez','Kararın nedenini mevcut durum açıklar'],'Kuralın baktığı bilgileri oyunun hafızası olarak inceleyelim.']),
+  step(['l1-state','simulate','simulate',8,40,'Oyunun hafızası: durum','Can, anahtar, kapı ve konum bilgileri oyunun o anda bildiği değişebilir gerçeklerdir. Görünmeyen sayaçlar da durum olabilir.','Bir olaydan önce hangi durumların değişeceğini tahmin eder.',['Durum yalnızca sayı değildir','Görsel ile veri aynı şey değildir','Her değişimin bir olayı ve önceki değeri vardır'],'Oyun içeride ne olduğunu biliyor; şimdi bunu oyuncuya nasıl anlattığına bakalım.']),
+  step(['l1-output','observe','classify',6,30,'Çıktı ve geri bildirim','Oyuncu verilen kararın sonucunu algılamalıdır. Hareket, ışık, ses, titreşim veya metin bilgi taşıyan output kanallarıdır.','Bilgi taşıyan geri bildirim ile yalnızca dekoru ayırır.',['Daha çok efekt her zaman daha iyi değildir','Tek kanala bağımlı bilgi erişilebilir olmayabilir','Output, oyuncuya “ne oldu?” sorusunun cevabını verir'],'Bilgisayarın neden kesin komut istediğini deneyelim.']),
+  step(['l1-precision','practice','order',8,40,'Bilgisayar tahmin etmez','“Biraz ilerle” ya da “sandviç yap” gibi talimatlar hedef, sıra ve ölçü belirtmez. Bilgisayar niyeti tamamlamaz.','Belirsiz bir talimatı sonlu ve uygulanabilir adımlara dönüştürür.',['Sıra sonucu değiştirebilir','Hedef ve miktar açık olmalıdır','Eksik bilgi varsa sistem güvenle durmalıdır'],'Kesin komutlar kodda saklanır; fakat kod ile kullandığımız araçlar aynı şey değildir.']),
+  step(['l1-roles','teach','match',8,40,'Oyun, motor, Editor, kod ve build','Editor üretim masasıdır; motor ortak sistemleri sağlar; kod kuralları tarif eder; proje kaynakları tutar; build oyuncunun çalıştırdığı pakettir.','Beş kavramı isimleriyle değil sorumluluklarıyla ayırır.',['Editor ile çalışan oyun aynı şey değildir','Motor tek başına oyun değildir','Build, geliştirme masasının oyuncuya teslim edilen sonucudur'],'Bu parçalar çalışırken oyun bir kez karar verip durmaz.']),
+  step(['l1-loop','simulate','simulate',6,35,'Oyun neden sürekli güncellenir?','Oyun yeni girdileri tekrar tekrar okur, kuralı uygular, durumu günceller ve sonucu yeniden gösterir. Bu derste frame ya da Update ayrıntısına girmiyoruz.','Üç kavramsal oyun turunda değişen durumu izler.',['Önceki durum sonraki turun başlangıcıdır','Her tur aynı input gelmeyebilir','Boş input da durumun korunmasıyla sonuçlanabilir'],'Yanlış sonuçta yalnız son görüntüye değil, bütün hatta bakalım.']),
+  step(['l1-debug','debug','debug',7,45,'Yanlış sonuç nerede doğdu?','Anahtar alınmış olmasına rağmen kapı açılmıyorsa ilk görünen belirtiyi değil, hattaki ilk beklenmeyen kanıtı ararız.','Input–kural–durum–output hattında kök nedeni bulur.',['Girdi gelmiş mi?','Durum beklenen değerde mi?','Kural doğru değeri mi kontrol ediyor?','Output doğru kararı mı gösteriyor?'],'Şimdi sana ait bir sistem tasarlayıp bütün halkaları kendin kuracaksın.']),
+  step(['l1-lab','lab','lab',8,55,'Kodsuz sistem laboratuvarı','Yakıtı varken hızlanan, yakıt bittiğinde güvenli uyarı veren uzay gemisi sistemini sözde kod parçalarıyla kur.','Yeni bir senaryoda dört halkayı ve iki karar dalını bağımsız tasarlar.',['Bu bir C# editörü değildir','Kural mevcut yakıt durumunu kullanmalıdır','Output hem başarıyı hem reddedilen isteği anlatmalıdır'],'Tasarladığın sistemi kısa bir oynanabilir görevde yöneteceksin.']),
+  step(['l1-game','game','game',7,45,'Komut Merkezi mini oyunu','Üç kapsülün yakıt, kapı ve gönderim durumlarını okuyup güvenli komut zincirleri kur. Hız değil, kanıta dayalı doğruluk ölçülür.','Dört halkayı yeni görevlerde baskı altında uygular.',['Yakıt kontrol edilmeden kapsül gönderilmez','Yanlışta tur sıfırlanmaz; kırık halka gösterilir','Klavye ve dokunma aynı görevleri yapabilir'],'Finalde kavramları karışık hâlde bağımsız olarak tanıyacaksın.']),
+  step(['l1-finale','finale','finale',9,135,'Etkinlik Bombası','On iki karma turda sıralama, sınıflandırma, hata ayıklama ve yeni oyuna transfer görevlerini tamamla.','Dersin yedi hedefinde en az yüzde 70 ilk deneme başarısı gösterir.',['Yanlış cevap XP silmez','İlk seçim ustalık skoruna girer','Eksik kalan kavramlar için hedefli tekrar açılır'],'Bir sistemi zihninde kurabiliyorsun; sırada dosyaların bilgisayarda nasıl yaşadığı var.']),
+];
+
+const lesson2Steps: LessonStep[] = [
+  step(['l2-recall','prepare','reveal',5,20,'Sistem zincirinden dosya zincirine','Çalışan oyunun geçici durumu ile bilgisayar kapalıyken diskte kalan dosya aynı şey değildir. Kod ve proje bilgileri dosyalarda saklanır.','Ders 1’deki sistem modelini kalıcı saklamaya aktarır.',['Çalışan durum geçici olabilir','Dosya kalıcı saklama birimidir','Araç dosyayı açar; build çalışan sonucu sunar'],'Saklama dünyasının iki temel nesnesini ayıralım.']),
+  step(['l2-file-folder','teach','classify',6,30,'Dosya mı klasör mü?','Dosyanın içeriği ve adı vardır; klasör dosyaları ve başka klasörleri düzenler. Simgeye değil göreve bakacağız.','Dosya, klasör ve alt klasörü birbirinden ayırır.',['Movement.cs bir dosyadır','Scripts bir klasördür','“Emin değilim” seçeneği ipucu açar; cezalandırmaz'],'Dosyanın adındaki son parça tür hakkında önemli bir ipucu verir.']),
+  step(['l2-name-extension','simulate','classify',7,35,'Ad ve uzantı anatomisi','Son noktanın ardından gelen bölüm uzantıdır. `PlayerMove.cs.txt` gibi çift uzantılar, uzantılar gizliyken gözden kaçabilir.','Gövde adı, nokta ve uzantıyı ayırır; sahte çift uzantıyı bulur.',['.cs C# kaynak dosyasını işaret eder','.unity bir sahne dosyasını işaret eder','Adı değiştirmek dosya biçimini dönüştürmez'],'Dosyanın bilgisayardaki adresini okuyalım.']),
+  step(['l2-path','practice','order',7,35,'Dosyanın adresi: yol','Yol, kökten başlayıp klasörler üzerinden dosyaya ulaşan adrestir. Aynı adlı iki dosya farklı yollarda bulunabilir.','Yol parçalarını soldan sağa okur ve doğru sıraya koyar.',['Her klasör bir sonraki parçanın ebeveynidir','Dosya adı tek başına benzersiz adres değildir','Ayıraç işletim sistemine göre değişebilir'],'Unity’nin açtığı adres tek dosyayı değil, bütün proje kökünü gösterir.']),
+  step(['l2-root','observe','match',8,40,'Unity projesi tek dosya değildir','Bir Unity projesi Assets, Packages ve ProjectSettings gibi birlikte çalışan temel parçalar taşır. Library yeniden üretilebilir bir cache’tir; bu derste silinmez.','Proje ağacındaki temel klasörleri görevleriyle eşleştirir.',['Assets içerik ve script’leri taşır','Packages bağımlılıkları tanımlar','ProjectSettings proje davranışını saklar'],'Hub’a hangi klasörü göstermemiz gerektiğini kesinleştirelim.']),
+  step(['l2-assets-boundary','practice','decide',6,35,'Proje kökü ve Assets sınırı','Hub’da Open project seçimi, Assets klasörünü değil; Assets, Packages ve ProjectSettings öğelerinin birlikte bulunduğu üst klasörü ister.','Üç aday arasından proje kökünü kanıtla seçer.',['MyGame/ doğru kök olabilir','MyGame/Assets/ kök değildir','Kanıt, kardeş temel klasörlerin bulunmasıdır'],'Doğru klasör ZIP içindeyse önce çalışma alanına hazırlanmalıdır.']),
+  step(['l2-zip','simulate','order',7,35,'ZIP arşivi ile çalışma klasörü','Arşiv teslim ve saklama paketidir; doğrudan çalışma alanı değildir. Tamamını güvenli hedefe çıkartıp kökü yeniden doğrularız.','Arşivi güvenli biçimde çıkartma adımlarını sıralar.',['ZIP’i seç','Hedef klasörü belirle','Tamamını çıkart','Proje kökünü doğrula','Orijinal arşivi yedek olarak koru'],'Çıkartılan projenin nereye konacağı da önemlidir.']),
+  step(['l2-safe-location','practice','decide',7,40,'Güvenli proje konumu seçmek','Kısa, anlaşılır, yazma izni bulunan ve kontrolsüz senkronizasyon riski taşımayan bir çalışma yolu seçilir.','Proje konumlarını izin, senkronizasyon, açıklık ve uzunluk açısından değerlendirir.',['Downloads geçici ve dağınık olabilir','Sistem klasörleri izin sorunu çıkarabilir','Kısa ASCII adlar başlangıç taşınabilirliğini artırır'],'Konum kadar projenin adı da ileride hata ayıklamayı etkiler.']),
+  step(['l2-naming','practice','classify',6,30,'Proje ve klasör isimlendirme','`FirstGame` niyeti açıklar; `final_son_son2` sürüm karmaşası üretir. Tarih yedek adında anlamlıdır, aktif proje adında sürekli eklenmez.','Belirsiz proje adlarını açık ve tutarlı adlara dönüştürür.',['Tam kelimeler kullan','Geçici adları kalıcılaştırma','Yedeğin tarihi ile projenin kimliğini ayır'],'İyi adlandırılmış proje de tek kopyaysa güvende değildir.']),
+  step(['l2-backup','teach','decide',8,40,'Kopya, senkronizasyon ve yedek','Aynı diskteki iki klasör donanım arızasına karşı korumaz. Senkronizasyon silmeyi de yayabilir. Bağımsız yedek ayrı risk alanında yaşar.','Çalışma kopyası, senkronizasyon ve gerçek yedeği ayırır.',['3 kopya','2 farklı ortam','1 kopya ayrı konumda','Bu bir zihinsel modeldir; tek sihirli ürün değildir'],'Kayıp görünen projede önce kanıt toplayacağız.']),
+  step(['l2-diagnose','debug','debug',7,45,'Projem kayboldu mu?','Hub projeyi açmıyorsa rastgele klasör taşımak yerine arşiv, çıkartma, kök ve erişim kanıtlarını sırayla kontrol ederiz.','Yanlış yol, ZIP, iç içe klasör ve eksik kök sorunlarını teşhis eder.',['Önce yolun arşiv içinde olup olmadığına bak','Assets’in kardeşlerini ara','İlk yanlış adımı kanıt cümlesiyle açıkla'],'Baştan güvenli bir çalışma alanı tasarlayacaksın.']),
+  step(['l2-lab','lab','lab',7,55,'Güvenli çalışma alanı laboratuvarı','Sanal dosya ağacında proje kökü, bağımsız yedek ve proje dışı notlar için güvenli mimari kur. Platform gerçek dosyalarını değiştirmez.','Gereksinimlere uygun klasör ve yedek mimarisi tasarlar.',['Proje ZIP içinde kalmaz','Assets kök olarak seçilmez','Yedek çalışma klasörünün aynısı değildir','Uzantılar görünür tutulur'],'Hazırladığın yapıyı kurtarma görevinde kullan.']),
+  step(['l2-game','game','game',7,45,'Dosya Kurtarma Operasyonu','Üç bozuk proje paketinde arşivi tanı, doğru kökü seç ve bağımsız yedek hedefini belirle. Hatalı seçim dosya silmez.','Dosya, yol, kök ve yedek kararlarını oynanabilir bir haritada uygular.',['Haritayı incele','İlk kırık bağı bul','En küçük güvenli düzeltmeyi seç','Düzeltme sonrası yeniden doğrula'],'Finalde proje yapısını ve güvenli çalışma kararlarını birlikte kullanacaksın.']),
+  step(['l2-finale','finale','finale',11,155,'Etkinlik Bombası','On iki karma turda dosya/klasör, uzantı, yol, proje kökü, ZIP, konum, adlandırma ve yedek kararlarını kanıtla.','Sekiz öğrenme hedefinde en az yüzde 70 ilk deneme başarısı gösterir.',['Tüm turlar tamamlanır','Yanlışlar hedefli açıklama açar','Başarılı final Ders 3’ün kilidini açar'],'Çalışma alanın hazır; şimdi Unity Hub ve Editor ortamını kuracağız.']),
+];
+
+const lesson3Steps: LessonStep[] = [
+  step(['l3-recall','prepare','reveal',5,20,'Proje kökü ve araç rolleri','Hub’da açılan şey MyGame proje köküdür; Assets tek başına proje değildir. Oyuncuya Editor değil, build gönderilir.','Önceki iki dersten proje kökü ve araç rolünü geri çağırır.',['Kökte Assets, Packages ve ProjectSettings birlikte bulunur','Hub projeleri ve Editor kurulumlarını yönetir','Build oyuncunun çalıştırdığı sonuçtur'],'Geliştirme zincirinin tüm görevlerini yerine oturtalım.']),
+  step(['l3-toolchain','teach','match',8,35,'Geliştirme zincirini kur','Hub yönetir; Editor üretir ve önizler; IDE kodu düzenler; modül hedef platform desteği verir; lisans kullanım hakkını etkinleştirir; proje dosyaları taşır.','Altı aracı görevleriyle eşleştirir.',['Hub ile Editor aynı uygulama değildir','IDE Unity sahnesini yönetmez','Modül, belirli build hedefi için ek destektir'],'Kurucuyu indirmeden önce bilgisayarın hazır olduğunu kanıtlayalım.']),
+  step(['l3-preflight','practice','checklist',8,40,'Kurulum öncesi sağlık kontrolü','Sabit bir GB sayısı ezberlemek yerine sistem gereksinimini, mimariyi, güncel kurulum boyutunu, izni ve bağlantıyı kanıtla kontrol ederiz.','Kurulum ön koşullarını eksiksiz değerlendirir.',['İşletim sistemi ve CPU mimarisi','Güncel boş disk alanı','Yazma/yönetici izni','Kararlı bağlantı','Hedef platform ve yedekli proje konumu'],'Hazır bilgisayarda sıradaki risk yanlış kaynaktan yanlış kurucu indirmektir.']),
+  step(['l3-source','practice','decide',6,35,'Resmî kaynağı ve doğru kurucuyu seç','Kurulum dosyası yalnız adına bakılarak değil, kaynak alan adı ve işletim sistemiyle doğrulanır. Üçüncü taraf indirme siteleri ana yol değildir.','Resmî Unity kaynağını ve doğru işletim sistemi dalını seçer.',['Alan adını kontrol et','Paketin işletim sistemini kontrol et','Ders parola veya dosya çalıştırma istemez'],'Doğru kurucuyla Hub’ın kendisini kuralım.']),
+  step(['l3-hub','observe','order',8,40,'Unity Hub kurulumu ve ilk açılış','Resmî kurucuyu aç, hedefi ve koşulları doğrula, kurulumu tamamla, Hub’ı aç ve Projects ile Installations alanlarını gör.','Hub kurulum sırasını ve başarı kanıtlarını açıklar.',['İşletim sistemine uygun resmî akış izlenir','Projects ve Installations görünmelidir','Hub açıldı diye Editor kurulmuş sayılmaz'],'Hub hazır; hesap ve lisans durumunu ayrı ayrı görelim.']),
+  step(['l3-account-license','simulate','decide',7,40,'Hesap ve lisans doğrulama','Oturum açmak kullanıcı kimliğini, lisans ise kullanım hakkını temsil eder. Ders parola veya doğrulama kodu toplamaz.','Oturum ve lisans durumunu ayırarak doğru sonraki adımı seçer.',['Oturum yok','Oturum var ve lisans etkin','Lisans görünmüyor','Çevrimdışı/kurumsal senaryo'],'Kullanım hakkı hazır; sınıfın aynı Editor sürümünde olmasını sağlayalım.']),
+  step(['l3-version','practice','decide',8,45,'Editor sürümünü bilinçli seç','Eğitim tam bir Unity 6 patch sürümüne sabitlenir. Daha yeni sürüm görünmesi otomatik yükseltme nedeni değildir; proje, paket ve ekip uyumu değerlendirilir.','Verilen sürüm politikasına göre doğru Editor sürümünü seçer.',['Major aile tek başına yeterli değildir','Kursun sabitlediği patch esas alınır','Eski proje ayrı test kopyasında yükseltilir'],'Editor tek başına her hedef platform için build alamaz.']),
+  step(['l3-modules','practice','simulate',9,45,'Gerekli modülleri seç','Bütün modülleri seçmek başarı değildir. Hedef platformun gerektirdiği en küçük set; disk, indirme ve bakım maliyetini kontrol eder.','Üç hedef için doğru modül sepetini bütçeyi aşmadan kurar.',['Masaüstü öğrenme hedefi','Android için Build Support ve ilgili araçlar','Web paylaşımı için Web Build Support','Gerçek boyut için Hub’daki güncel değer esas alınır'],'Seçim hazır; kurulum durumlarını doğru okuyalım.']),
+  step(['l3-install','observe','decide',7,35,'İndirme, kurulum ve durum okuma','Downloading, installing, queued, failed ve complete aynı durum değildir. Her birinde doğru güvenli eylem farklıdır.','Kurulum durumunu okuyup bekleme, alan açma veya yeniden deneme kararı verir.',['Hata mesajını kaydet','Disk ve bağlantıyı doğrula','Yalnız başarısız modülü yeniden dene','Proje klasörlerini silmek çözüm değildir'],'Editor kurulurken kod aracını ve bağlantısını hazırlayalım.']),
+  step(['l3-ide','practice','simulate',9,45,'Kod editörü/IDE ve Unity bağlantısı','IDE kod yazma, tamamlama, analiz ve debug sağlar; Unity Editor sahneyi ve oyun çalışmasını yönetir. Kurum tek desteklenen ana editörü seçebilir.','Kod editörünü Unity External Tools ayarına doğru bağlar.',['Visual Studio, Rider veya uygun C# eklentili VS Code','External Script Editor seçimi','Unity türleri tanınmıyorsa entegrasyon ve proje dosyalarını kontrol et'],'Kurulumun sağlıklı olduğunu beş kanıtla doğrulayalım.']),
+  step(['l3-verify','test','checklist',7,45,'Beş maddelik kurulum doğrulaması','Kurulum “sanırım oldu” ile değil, beş ölçülebilir kanıtla tamamlanır. İlk proje ise bilinçli olarak Ders 4’e bırakılır.','Geliştirme ortamını ölçülebilir kanıtlarla doğrular.',['Hub açılıyor','Sabitlenen Editor Installed görünüyor','Gerekli modüller listeleniyor','Lisans etkin','External Tools’ta IDE seçilebiliyor'],'Eksik kanıtta rastgele yeniden kurmak yerine kurulum kliniğini kullanalım.']),
+  step(['l3-debug','debug','debug',8,55,'Kurulum kliniği','Belirtiyi ilgili katmana indir: Hub, Editor, modül, lisans, IDE, işletim sistemi, disk veya ağ. Sonra en küçük güvenli düzeltmeyi uygula.','Sekiz kurulum vakasında kök katmanı ve doğrulama adımını seçer.',['Belirtiyi yaz','Kapsamı belirle','Görünen hata veya durumu kaydet','İlgili katmanı seç','Düzeltme sonrası aynı kanıtı yeniden ölç'],'Sınırlı depolamayla doğru atölyeyi kurmayı dene.']),
+  step(['l3-game','game','game',7,45,'Kurulum Mimarı mini oyunu','Üç öğrenci profili için doğru Editor, modül, IDE ve lisans akışını disk bütçesini aşmadan kur. Fazladan seçim geri alınabilir.','Kurulum kararlarını hedef, bütçe ve platform kısıtlarıyla birlikte uygular.',['Sürümü sabitle','Hedef modülleri seç','IDE’yi bağla','Lisansı doğrula','Sağlık testini tamamla'],'Finalde araç görevleri, sürüm, modül ve teşhisi birlikte kullan.']),
+  step(['l3-finale','finale','finale',11,165,'Etkinlik Bombası','On iki karma turda araç rolleri, ön kontrol, güvenli kaynak, sürüm, modül, lisans, IDE ve hata teşhisini bağımsız uygula.','Dokuz hedefte en az yüzde 70 ilk deneme başarısı ve sağlık kontrolü öz değerlendirmesi gösterir.',['Tüm turlar tamamlanır','İlk deneme ustalık skorunu belirler','Eksik hedefler doğrudan ilgili adıma bağlanır'],'Atölyen hazır; Ders 4’te doğru şablon ve konumla ilk Unity projesini oluşturacaksın.']),
+];
+
 export const lessons: Lesson[] = [
   {
-    id: 'lesson-1', order: 1, duration: 60, fileName: 'FirstScript.cs',
-    title: text('C#, Unity ve ilk çalışan script', 'C#, Unity, and your first working script'),
-    summary: text('Bir C# dosyasının Unity’de nasıl Component hâline geldiğini anlayıp Console’a bilinçli çıktı gönder.', 'Understand how a C# file becomes a Unity Component and deliberately write output to the Console.'),
-    taskTitle: text('İlk scriptin derlenebilir iskeletini kur.', 'Build the compilable skeleton of your first script.'),
-    taskBody: text('`FirstScript` sınıfını `MonoBehaviour` sınıfından türet, `Start` metodunu doğru yaz ve `Debug.Log("Unity hazır");` satırını metodun içine yerleştir.', 'Derive `FirstScript` from `MonoBehaviour`, declare `Start` correctly, and place `Debug.Log("Unity ready");` inside the method.'),
-    successMessage: text('Script yapısı doğru. Artık Unity’nin bu kodu ne zaman çağırdığını açıklayabilirsin.', 'The script structure is correct. You can now explain when Unity calls this code.'),
-    concepts: ['class', 'MonoBehaviour', 'Start', 'Debug.Log', 'Console'],
-    starterCode: '',
-    steps: [
-      { id: 'l1-brief', kind: 'prepare', activity: 'brief', duration: 3, title: text('Nasıl öğreneceğiz?', 'How will we learn?'), description: text('Önce gör, sonra dene, kendi cümlenle açıkla ve en son kodu yaz.', 'First see, then try, explain it in your own words, and finally write the code.'), bullets: list(['Kod editörü dersin tamamı değil, son doğrulama alanıdır', 'Yanlış cevap cezalandırılmaz; açıklanır ve yeniden denenir'], ['The editor is not the whole lesson; it is the final verification space', 'Wrong answers are explained and tried again']) },
-{ id: 'l1-hotspot', kind: 'observe', activity: 'hotspot', duration: 6, title: text('Unity Editor panel avı', 'Unity Editor panel hunt'), description: text('Hierarchy, Scene, Game, Inspector, Project ve Console panellerini etkileşimli bir editör haritasında keşfet.', 'Explore Hierarchy, Scene, Game, Inspector, Project, and Console on an interactive editor map.'), bullets: list(['Her panel farklı bir soruya cevap verir', 'Panel adını değil, sorumluluğunu öğren'], ['Each panel answers a different question', 'Learn responsibilities rather than labels']) },
-      { id: 'l1-reveal', kind: 'learn', activity: 'reveal', duration: 3, title: text('Script, class ve Component', 'Script, class, and Component'), description: text('Birbirine benzeyen dört kavramın aynı şey olmadığını kartları açarak gör.', 'Reveal why four similar concepts are not the same thing.'), bullets: list(['Script kaynak dosyadır', 'Class şablondur', 'Component sahnedeki örnektir'], ['A script is a source file', 'A class is a blueprint', 'A Component is the scene instance']) },
-      { id: 'l1-match', kind: 'practice', activity: 'match', duration: 3, title: text('Sembolü görevine bağla', 'Match syntax to responsibility'), description: text('`using`, `class`, `MonoBehaviour` ve scope işaretlerini görevleriyle eşleştir.', 'Match `using`, `class`, `MonoBehaviour`, and scope markers to their jobs.'), bullets: list(['Sembol ezberleme; kodda neyi değiştirdiğini söyle', 'Yanlış eşleşmede yeniden düşün'], ['Do not memorise symbols; state what they change', 'Reconsider after a wrong match']) },
-      { id: 'l1-order', kind: 'practice', activity: 'order', duration: 4, title: text('İskeleti sıraya koy', 'Order the skeleton'), description: text('Bir C# dosyasının temel satırlarını doğru sıraya getir.', 'Place the basic lines of a C# file in the correct order.'), bullets: list(['`using` sınıfın dışında kalır', 'Süslü parantezler sınıf scope’unu çevreler'], ['`using` stays outside the class', 'Braces surround the class scope']) },
-      { id: 'l1-fill', kind: 'practice', activity: 'fill', duration: 4, title: text('Sınıf bildirimini tamamla', 'Complete the class declaration'), description: text('Hazır seçenekleri doğru boşluklara yerleştirerek sözdizimini tanı.', 'Recognise the syntax by placing tokens into the correct blanks.'), bullets: list(['`public` erişimi belirler', '`:` kalıtımı ifade eder'], ['`public` defines access', '`:` expresses inheritance']) },
-      { id: 'l1-inspector', kind: 'observe', activity: 'inspector', duration: 5, title: text('Koddan Inspector’a', 'From code to Inspector'), description: text('Serileştirilmiş bir değeri değiştir, Play’e bas ve Console çıktısını izle.', 'Change a serialised value, press Play, and observe the Console output.'), bullets: list(['Inspector koddan kopuk bir form değildir', 'Değer her Component örneğine aittir'], ['The Inspector is not detached from code', 'The value belongs to each Component instance']) },
-      { id: 'l1-predict', kind: 'prepare', activity: 'predict', duration: 6, title: text('Önce tahmin et: Awake', 'Predict first: Awake'), description: text('`Awake` ile `awake` arasındaki farkı kodu çalıştırmadan önce tahmin et.', 'Predict the difference between `Awake` and `awake` before execution.'), bullets: list(['C# case-sensitive çalışır', 'Unity callback adını birebir arar'], ['C# is case-sensitive', 'Unity looks for the exact callback name']) },
-      { id: 'l1-spot', kind: 'practice', activity: 'spot', duration: 5, title: text('Hatalı satırı bul', 'Find the faulty line'), description: text('Kod bloğuna yazılan düz Türkçe cümlenin neden komut olmadığını bul.', 'Find why a plain sentence inside a code block is not a statement.'), bullets: list(['Comment `//` ile başlar', 'Console mesajı `Debug.Log("...");` biçimindedir'], ['A comment begins with `//`', 'A Console message uses `Debug.Log("...");`']) },
-      { id: 'l1-sort', kind: 'practice', activity: 'sort', duration: 7, title: text('Değerleri tür kutularına ayır', 'Sort values into type buckets'), description: text('İkinci derse hazırlık olarak `int`, `string` ve `bool` değerlerini sınıflandır.', 'Prepare for lesson two by classifying `int`, `string`, and `bool` values.'), bullets: list(['Tür, değerin nasıl yorumlandığını belirler', 'Metin çift tırnak içinde yazılır'], ['A type determines how a value is interpreted', 'Strings use double quotes']) },
-      { id: 'l1-console', kind: 'observe', activity: 'console', duration: 5, title: text('Console dedektifi', 'Console detective'), description: text('Kırmızı hata kaydından doğru dosya ve satıra ilerle.', 'Trace a red error record to the correct file and line.'), bullets: list(['Önce severity, sonra hata kodu', 'Dosya ve satır numarası rastgele aramayı bitirir'], ['Read severity, then the code', 'File and line eliminate guessing']) },
-      { id: 'l1-code', kind: 'practice', activity: 'code', duration: 7, title: text('Sıfırdan çalışan script yaz', 'Write a working script from scratch'), description: text('Artık hazır iskelet yok: öğrendiğin parçaları boş dosyada birleştir ve tüm scriptleri birlikte doğrula.', 'There is no prepared skeleton: combine what you learned in a blank file and validate all scripts together.'), bullets: list(['`using UnityEngine;` ile başla', '`FirstScript : MonoBehaviour` sınıfını kur', '`Start` içinde `Debug.Log("Unity hazır");` çalıştır', 'İkinci script aç, dosya–sınıf eşleşmesini dene ve sonra sil'], ['Start with `using UnityEngine;`', 'Build `FirstScript : MonoBehaviour`', 'Run `Debug.Log("Unity ready");` inside `Start`', 'Open a second script, test file–class matching, then delete it']), editorTitle: text('Bağımsız uygulama: FirstScript.cs', 'Independent practice: FirstScript.cs'), editorTask: text('Boş dosyada scripti tamamen kendin oluştur. “Kodu kontrol et” düğmesi tüm açık scriptleri tarar ve Problems panelinde sonuçları dosya dosya ayırır; bir hataya dokunduğunda ilgili script ve satır açılır.', 'Build the complete script yourself in the blank file. “Check code” scans every open script and groups the results by file in Problems; tapping a problem opens its script and line.') },
-      { id: 'l1-mastery', kind: 'reflect', activity: 'mastery', duration: 2, title: text('Ustalık kontrolü', 'Mastery check'), description: text('Üç kısa soruyla kavramları ezberden değil, görevleri üzerinden geri çağır.', 'Recall concepts by responsibility rather than memorisation in three short questions.'), bullets: list(['Yanlış cevap puan düşürmez', 'Doğru cevabın nedenini sesli açıkla'], ['Wrong answers do not remove points', 'Explain why the correct answer is right']) },
-    ],
+    id:'lesson-001-game-system-mental-model', order:1, module:1, duration:98, status:'published', fileName:'', starterCode:'',
+    title:text('Oyun Bilgisayarda Nasıl Çalışır? Komut, Kural, Durum ve Görüntü'),
+    summary:text('Bir oyunda input’tan görünür sonuca kadar gerçekleşen zinciri anlayıp kod yazmadan tasarlayacaksın.'),
+    taskTitle:text('Kodsuz bir oyun sistemi tasarla.'), taskBody:text('Input, kural, durum ve output halkalarını yeni bir oyun senaryosunda kur.'),
+    successMessage:text('Sistemin dört halkasını kanıtla kurabiliyorsun.'), concepts:['input','kural','durum','output','Editor','build'], steps:lesson1Steps,
+    badge:{tr:{name:'Sistem Kaşifi',description:'Input–kural–durum–çıktı zincirini kurdun.'},en:{name:'Sistem Kaşifi',description:'Input–kural–durum–çıktı zincirini kurdun.'}},
   },
   {
-    id: 'lesson-2', order: 2, duration: 60, fileName: 'PlayerState.cs',
-    title: text('Değişkenler, türler ve isimlendirme', 'Variables, types, and naming'),
-    summary: text('`int`, `bool` ve `string` değerlerini oyun durumuna bağla; C# isimlerinin neden birebir eşleşmesi gerektiğini gör.', 'Connect `int`, `bool`, and `string` values to game state and see why C# identifiers must match exactly.'),
-    taskTitle: text('Oyuncu durumunu doğru türlerle modelle.', 'Model player state with the correct types.'),
-    taskBody: text('`packageCount`, `isGameActive` ve `playerName` değişkenlerini istenen türlerde tanımla. Ardından `Debug.Log(packageCount);` ile aynı değişkeni yazdır. `packagecount` ile `packageCount` C# için aynı isim değildir.', 'Declare `packageCount`, `isGameActive`, and `playerName` with the requested types. Then print the exact same variable using `Debug.Log(packageCount);`. In C#, `packagecount` and `packageCount` are different identifiers.'),
-    successMessage: text('Türler ve isimler birbiriyle tutarlı. Değerler artık güvenle okunabilir.', 'Types and identifiers are consistent. The values can now be read safely.'),
-    concepts: ['int', 'bool', 'string', 'camelCase', 'identifier'],
-    starterCode: '',
-    steps: [
-      { id: 'l2-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Ön bilgiyi geri çağır', 'Recall prior knowledge'), description: text('Script iskeletini bir oyun davranışına bağlayarak önceki dersten kalan zihinsel modeli etkinleştir.', 'Activate the previous lesson’s mental model by connecting a script skeleton to game behaviour.'), bullets: list(['Önce tahmin et, sonra açıklamayı aç', '`Start` ile `Debug.Log` arasındaki akışı kur'], ['Predict first, then reveal the explanation', 'Connect `Start` to `Debug.Log`']) },
-      { id: 'l2-anatomy', kind: 'learn', activity: 'match', duration: 8, title: text('Değişkenin dört parçası', 'The four parts of a variable'), description: text('Tür, isim, atama operatörü ve değerin aynı satırdaki ayrı sorumluluklarını gör.', 'See the separate responsibilities of type, identifier, assignment operator, and value on one line.'), bullets: list(['`int packageCount = 3;` satırını parçala', 'Her parçayı yaptığı işle eşleştir'], ['Dissect `int packageCount = 3;`', 'Match every part to its job']) },
-      { id: 'l2-types', kind: 'practice', activity: 'sort', duration: 8, title: text('Değeri doğru veri türüne gönder', 'Send the value to the correct type'), description: text('Oyun durumlarından gelen on iki gerçek değeri `int`, `string` ve `bool` kutularına ayır.', 'Sort twelve real game-state values into `int`, `string`, and `bool` buckets.'), bullets: list(['Kod biçimini ve tırnakları dikkatle oku', 'Yanlış seçimde değerin neden o türe ait olmadığını gör'], ['Read code formatting and quotation marks carefully', 'See why a wrong choice does not fit the type']) },
-      { id: 'l2-state', kind: 'observe', activity: 'inspector', duration: 8, title: text('Canlı oyun durumu laboratuvarı', 'Live game-state laboratory'), description: text('Inspector benzeri kontrolleri değiştir; kod, bellek kartı ve oyun HUD’ının birlikte nasıl güncellendiğini izle.', 'Change Inspector-like controls and watch code, memory, and the game HUD update together.'), bullets: list(['Değişken bir etikete değil, değişebilen duruma işaret eder', 'Aynı değer farklı yüzeylerde farklı biçimde gösterilebilir'], ['A variable points to changing state, not merely a label', 'The same value can appear differently across surfaces']) },
-      { id: 'l2-naming', kind: 'observe', activity: 'spot', duration: 8, title: text('İsim avcısı: case sensitivity', 'Identifier detective: case sensitivity'), description: text('`packageCount` ile `packagecount` arasındaki tek harflik farkın neden `CS0103` ürettiğini sembol tablosunda izle.', 'Trace why the one-letter difference between `packageCount` and `packagecount` causes `CS0103` in the symbol table.'), bullets: list(['Tanım ve kullanım birebir eşleşir', '`camelCase` okunabilirlik kuralıdır; eşleşme ise derleyici kuralıdır'], ['Declaration and use match exactly', '`camelCase` is a readability convention; exact matching is a compiler rule']) },
-      { id: 'l2-fields', kind: 'learn', activity: 'match', duration: 8, title: text('Alan, yerel değişken ve Inspector', 'Fields, locals, and the Inspector'), description: text('Bir değerin nerede yaşadığına göre scope’unu ve Inspector’da görünüp görünmediğini belirle.', 'Determine a value’s scope and Inspector visibility from where it lives.'), bullets: list(['Yerel değişken yalnızca metodun içindedir', '`[SerializeField] private` kontrollü Inspector erişimi sağlar'], ['A local variable only exists inside its method', '`[SerializeField] private` provides controlled Inspector access']) },
-      { id: 'l2-code', kind: 'practice', activity: 'code', duration: 10, title: text('Tür güvenli kod uygulaması', 'Type-safe coding practice'), description: text('Üç farklı türü sıfırdan tanımla; bilinçli bir büyük/küçük harf hatası üret, tanıyı oku ve düzelt.', 'Declare three types from scratch; create an intentional casing error, read the diagnostic, and fix it.'), bullets: list(['Tanım ile kullanım birebir aynı olmalı', 'Metin değeri çift tırnak içinde olmalı'], ['Declaration and usage must match exactly', 'String values must be inside double quotes']) },
-      { id: 'l2-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Tür ve isim ustalık kontrolü', 'Type and naming mastery check'), description: text('Yeni bir oyun senaryosunda tür, isim ve scope kararlarını birlikte ver.', 'Make type, identifier, and scope decisions together in a new game scenario.'), bullets: list(['Kuralı yeni bağlama aktar', 'Doğru seçeneğin nedenini teknik terimle açıkla'], ['Transfer the rule to a new context', 'Explain the correct answer with technical language']) },
-    ],
+    id:'lesson-002-files-folders-projects', order:2, module:1, duration:99, status:'published', fileName:'', starterCode:'',
+    title:text('Dosya, Klasör, Uzantı ve Proje: Geliştiricinin Çalışma Masası'),
+    summary:text('Dosyaları, yolları, proje kökünü, ZIP arşivini ve güvenli yedeği sıfırdan anlayıp sanal bir çalışma alanı kuracaksın.'),
+    taskTitle:text('Güvenli Unity çalışma alanı kur.'), taskBody:text('Doğru proje kökü, çalışma klasörü ve bağımsız yedek yapısını tasarla.'),
+    successMessage:text('Projenin bilgisayarda nerede ve nasıl güvenle yaşadığını açıklayabiliyorsun.'), concepts:['dosya','klasör','uzantı','yol','proje kökü','ZIP','yedek'], steps:lesson2Steps,
+    badge:{tr:{name:'Dijital Düzen Ustası',description:'Dosya ve proje düzenini güvenli kurdun.'},en:{name:'Dijital Düzen Ustası',description:'Dosya ve proje düzenini güvenli kurdun.'}},
   },
   {
-    id: 'lesson-3', order: 3, duration: 60, fileName: 'GameDecision.cs',
-    title: text('Operatörler ve koşullu kararlar', 'Operators and conditional decisions'),
-    summary: text('Karşılaştırma sonucunu `if`, `else if` ve `else` bloklarıyla oyun davranışına dönüştür.', 'Turn comparison results into game behaviour with `if`, `else if`, and `else` blocks.'),
-    taskTitle: text('Can değerine göre oyun kararını üret.', 'Make a game decision from the lives value.'),
-    taskBody: text('`lives` değerini `int` olarak tanımla. `lives > 0` olduğunda “Devam”, aksi durumda “Oyun bitti” mesajını yazdıran `if/else` yapısını kur.', 'Declare `lives` as an `int`. Build an `if/else` statement that prints “Continue” when `lives > 0` and “Game over” otherwise.'),
-    successMessage: text('Koşul iki olası yolu da kapsıyor ve oyun durumu doğru okunuyor.', 'The condition covers both possible paths and reads the game state correctly.'),
-    concepts: ['if', 'else', '>', '==', '!', 'bool'],
-    starterCode: '',
-    steps: [
-      { id: 'l3-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Bool bilgisini geri çağır', 'Recall boolean knowledge'), description: text('Bir karşılaştırmanın neden sayı değil `bool` ürettiğini önce tahmin et, sonra akış üzerinde gör.', 'Predict why a comparison produces a `bool` rather than a number, then inspect the flow.'), bullets: list(['Değer ile soruyu ayır', '`lives > 0` bir karar sorusudur'], ['Separate the value from the question', '`lives > 0` is a decision question']) },
-      { id: 'l3-operators', kind: 'learn', activity: 'match', duration: 8, title: text('Operatörleri görevlerine bağla', 'Match operators to responsibilities'), description: text('Atama, karşılaştırma ve mantık operatörlerini görünüşlerine değil ürettikleri sonuca göre sınıflandır.', 'Classify assignment, comparison, and logical operators by their result rather than appearance.'), bullets: list(['`=` ile `==` aynı işlem değildir', '`&&`, `||` ve `!` bool değerlerle çalışır'], ['`=` and `==` are different operations', '`&&`, `||`, and `!` work with booleans']) },
-      { id: 'l3-compare', kind: 'observe', activity: 'inspector', duration: 7, title: text('Karşılaştırma simülatörü', 'Comparison simulator'), description: text('Can değerini değiştirerek `>`, `==` ve `!=` sonuçlarının anlık değişimini izle.', 'Change the lives value and watch `>`, `==`, and `!=` results update immediately.'), bullets: list(['Önce sonucu tahmin et', 'Sınır değeri olan `0`ı özellikle test et'], ['Predict the result first', 'Test the boundary value `0` deliberately']) },
-      { id: 'l3-logic', kind: 'practice', activity: 'sort', duration: 8, title: text('Koşulları birleştir', 'Combine conditions'), description: text('Enerji, anahtar ve oyun durumu kartlarını `&&`, `||` veya `!` ile doğru karar cümlesine bağla.', 'Connect energy, key, and game-state cards to the correct decision using `&&`, `||`, or `!`.'), bullets: list(['`&&`: iki koşul da gerekli', '`||`: koşullardan biri yeterli'], ['`&&`: both conditions are required', '`||`: either condition is enough']) },
-      { id: 'l3-flow', kind: 'observe', activity: 'predict', duration: 8, title: text('if / else karar sahnesi', 'The if / else decision scene'), description: text('Aynı karakteri farklı `lives` değerleriyle kapılardan geçir; yalnızca seçilen kod dalının çalıştığını izle.', 'Move the same character through gates with different `lives` values and see that only the selected branch runs.'), bullets: list(['Koşul yukarıdan aşağı değerlendirilir', 'Bir `if/else` zincirinde ilk doğru dal seçilir'], ['Conditions are evaluated top to bottom', 'The first true branch in an `if/else` chain is chosen']) },
-      { id: 'l3-order', kind: 'practice', activity: 'order', duration: 7, title: text('Karar kodunu sıraya koy', 'Order the decision code'), description: text('Dağılmış satırları scope’u bozmadan derlenebilir bir `if/else` yapısına dönüştür.', 'Turn shuffled lines into a compilable `if/else` structure without breaking scope.'), bullets: list(['Koşul parantez içindedir', '`else` kendi başına koşul almaz'], ['The condition is inside parentheses', '`else` does not take its own condition']) },
-      { id: 'l3-code', kind: 'practice', activity: 'code', duration: 12, title: text('Koşullu karar uygulaması', 'Conditional decision practice'), description: text('Can değerine göre iki yolu sıfırdan yaz; farklı değerlerde beklediğin çıktıyı kodu kontrol etmeden önce söyle.', 'Write both paths from scratch and state the expected output for different values before checking code.'), bullets: list(['Süslü parantezlerle scope’u koru', 'Her dalda gözlemlenebilir çıktı üret'], ['Preserve scope with braces', 'Produce observable output in every branch']) },
-      { id: 'l3-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Karar ustalık kontrolü', 'Decision mastery check'), description: text('Enerji, reklam hakkı ve bölüm kilidi senaryolarında doğru operatörü ve akışı seç.', 'Choose the correct operator and flow in energy, ad-continue, and level-lock scenarios.'), bullets: list(['Sınır değerini kontrol et', 'Koşulu doğal dille de açıkla'], ['Check the boundary value', 'Explain the condition in natural language too']) },
-    ],
-  },
-  {
-    id: 'lesson-4', order: 4, duration: 60, fileName: 'LifecycleProbe.cs',
-    title: text('Metodlar ve Unity yaşam döngüsü', 'Methods and the Unity lifecycle'),
-    summary: text('`Awake`, `OnEnable`, `Start`, `Update`, `FixedUpdate` ve `LateUpdate` metodlarını doğru sorumluluklarla ayır.', 'Separate `Awake`, `OnEnable`, `Start`, `Update`, `FixedUpdate`, and `LateUpdate` by responsibility.'),
-    taskTitle: text('Yaşam döngüsü sırasını gözlemlenebilir yap.', 'Make the lifecycle order observable.'),
-    taskBody: text('`Awake`, `OnEnable` ve `Start` metodlarını ekle; her birinin içine metodun adını yazdıran bir `Debug.Log` koy. Sürekli fizik kuvvetini `FixedUpdate`, kamera takibini `LateUpdate` ile ilişkilendir.', 'Add `Awake`, `OnEnable`, and `Start`, each with a `Debug.Log` containing its method name. Associate continuous physics forces with `FixedUpdate` and camera follow with `LateUpdate`.'),
-    successMessage: text('Başlangıç sırası görünür ve metod sorumlulukları doğru ayrılmış.', 'The startup order is visible and method responsibilities are separated correctly.'),
-    concepts: ['Awake', 'OnEnable', 'Start', 'Update', 'FixedUpdate', 'LateUpdate'],
-    starterCode: '',
-    steps: [
-      { id: 'l4-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Metod anatomisini geri çağır', 'Recall method anatomy'), description: text('Dönüş türü, metod adı, parametre listesi ve gövdeyi gerçek kod üzerinde tek tek göster.', 'Point out the return type, method name, parameter list, and body on real code.'), bullets: list(['`void` metodun değer döndürmediğini söyler', '`()` çağrı arayüzüdür; her zaman boş olmak zorunda değildir'], ['`void` says the method returns no value', '`()` is the call interface and need not always be empty']) },
-      { id: 'l4-methods', kind: 'learn', activity: 'match', duration: 8, title: text('Metodun parçalarını bağla', 'Connect the parts of a method'), description: text('`void Move(float speed)` satırındaki her parçayı sorumluluğuyla eşleştir.', 'Match each part of `void Move(float speed)` to its responsibility.'), bullets: list(['Parametre dışarıdan veri alır', 'Gövde metod çağrıldığında çalışır'], ['A parameter receives outside data', 'The body runs when the method is called']) },
-      { id: 'l4-order', kind: 'learn', activity: 'order', duration: 8, title: text('Başlatma sırasını kur', 'Build the initialisation order'), description: text('`Awake`, `OnEnable` ve `Start` kartlarını doğru sıraya getir; devre dışı bırakıp açınca neyin tekrarlandığını izle.', 'Order `Awake`, `OnEnable`, and `Start`, then observe what repeats after disable and enable.'), bullets: list(['`Awake`: nesnenin kendi hazırlığı', '`OnEnable`: her etkinleşmede', '`Start`: ilk aktif başlangıçta'], ['`Awake`: internal setup', '`OnEnable`: every enable', '`Start`: first active start']) },
-      { id: 'l4-callbacks', kind: 'practice', activity: 'match', duration: 8, title: text('İşi doğru callback’e ver', 'Assign work to the right callback'), description: text('Input, fizik kuvveti, kamera takibi, abonelik ve ilk kurulum işlerini doğru yaşam döngüsü metoduna bağla.', 'Assign input, physics force, camera follow, subscriptions, and initial setup to the correct lifecycle method.'), bullets: list(['Zamanlama davranışın bir parçasıdır', 'Doğru çalışan ama yanlış yerde çalışan kod da sorun çıkarabilir'], ['Timing is part of behaviour', 'Code can work yet still be placed incorrectly']) },
-      { id: 'l4-frames', kind: 'observe', activity: 'inspector', duration: 7, title: text('Frame ve fizik ritmi simülatörü', 'Frame and physics rhythm simulator'), description: text('Render hızı değişirken `FixedUpdate` ritminin neden ayrı kaldığını hareketli zaman çizelgesinde izle.', 'Watch why the `FixedUpdate` rhythm remains separate as render speed changes.'), bullets: list(['`Update` frame başına çalışır', '`FixedUpdate` sabit fizik zamanına bağlıdır', '`LateUpdate` Update sonrasında gelir'], ['`Update` runs per frame', '`FixedUpdate` follows fixed physics time', '`LateUpdate` comes after Update']) },
-      { id: 'l4-performance', kind: 'observe', activity: 'sort', duration: 7, title: text('Her şey Update’e yazılmaz', 'Not everything belongs in Update'), description: text('Sekiz işi “her frame gerekli” ve “olay olduğunda yeterli” kutularına ayır; gereksiz maliyeti gör.', 'Sort eight tasks into “needed every frame” and “only on an event” to expose unnecessary cost.'), bullets: list(['Boş `Update` bile niyeti belirsizleştirir', 'Tek seferlik işi `Start` veya olaya taşı'], ['Even an empty `Update` obscures intent', 'Move one-off work to `Start` or an event']) },
-      { id: 'l4-code', kind: 'practice', activity: 'code', duration: 12, title: text('Yaşam döngüsü probu', 'Lifecycle probe'), description: text('Başlangıç callback’lerini sıfırdan yaz; Console sırasını ve büyük/küçük harf duyarlılığını doğrula.', 'Write startup callbacks from scratch and verify Console order and casing.'), bullets: list(['Metod adlarını birebir doğru yaz', 'Her metoda ayırt edilebilir mesaj koy'], ['Spell method names exactly', 'Give each method a distinguishable message']) },
-      { id: 'l4-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Yaşam döngüsü ustalık kontrolü', 'Lifecycle mastery check'), description: text('Yeni sorumlulukları doğru metoda yerleştir ve yanlış seçimin görünür sonucunu açıkla.', 'Place new responsibilities in the right method and explain the visible consequence of a wrong choice.'), bullets: list(['Sadece isim değil gerekçe seç', 'Performans etkisini de hesaba kat'], ['Choose the reason, not only the name', 'Include the performance impact']) },
-    ],
-  },
-  {
-    id: 'lesson-5', order: 5, duration: 60, fileName: 'PlayerContact.cs',
-    title: text('GameObject, Component ve ilk fizik teması', 'GameObjects, Components, and first physics contact'),
-    summary: text('Transform, Rigidbody ve Collider görevlerini ayır; trigger olayını kodla ve önceki dört dersten bilgileri geri çağır.', 'Separate Transform, Rigidbody, and Collider responsibilities, code a trigger event, and recall knowledge from the first four lessons.'),
-    taskTitle: text('Trigger temasını güvenli biçimde yakala.', 'Handle a trigger contact safely.'),
-    taskBody: text('`playerRigidbody` alanını `[SerializeField] private Rigidbody` olarak tanımla. `OnTriggerEnter(Collider other)` metodunda temas eden nesnenin adını `Debug.Log(other.name);` ile yazdır.', 'Declare `playerRigidbody` as a `[SerializeField] private Rigidbody` field. In `OnTriggerEnter(Collider other)`, print the contacting object name with `Debug.Log(other.name);`.'),
-    successMessage: text('Component referansı ve trigger callback’i doğru kuruldu. İlk beş dersin kavramları tek davranışta birleşti.', 'The Component reference and trigger callback are correct. Concepts from the first five lessons now work together.'),
-    concepts: ['GameObject', 'Component', 'Transform', 'Rigidbody', 'Collider', 'OnTriggerEnter', 'SerializeField'],
-    starterCode: '',
-    steps: [
-      { id: 'l5-recall', kind: 'prepare', activity: 'mastery', duration: 7, title: text('Aralıklı tekrar turu', 'Spaced recall round'), description: text('İlk dört dersten gelen soruları karışık sırada çöz; unutulan kavram için kısa iyileştirme kartını aç.', 'Solve mixed questions from the first four lessons and open a short remediation card for forgotten concepts.'), bullets: list(['Tür, koşul, callback ve hata okuma birlikte gelir', 'Yanlış cevap sonraki açıklamayı kişiselleştirir'], ['Types, conditions, callbacks, and diagnostics appear together', 'A wrong answer personalises the next explanation']) },
-      { id: 'l5-components', kind: 'learn', activity: 'inspector', duration: 8, title: text('GameObject’i Component’lerle kur', 'Build a GameObject with Components'), description: text('Boş bir GameObject’e ihtiyaçlarına göre Component ekle; Inspector yığınının davranışı nasıl oluşturduğunu gör.', 'Add Components to an empty GameObject according to its needs and see how the Inspector stack creates behaviour.'), bullets: list(['GameObject taşıyıcıdır', 'Component tek bir sorumluluk ekler', 'Her GameObject’te Transform vardır'], ['A GameObject is a container', 'A Component adds one responsibility', 'Every GameObject has a Transform']) },
-      { id: 'l5-roles', kind: 'practice', activity: 'match', duration: 7, title: text('Component görevlerini eşleştir', 'Match Component responsibilities'), description: text('Konum, fizik hareketi, temas sınırı ve özel oyun davranışını doğru Component’e bağla.', 'Match position, physics movement, contact boundaries, and custom game behaviour to the right Component.'), bullets: list(['`Transform` konum/dönüş/ölçek', '`Rigidbody` fizik gövdesi', '`Collider` temas şekli'], ['`Transform` is position/rotation/scale', '`Rigidbody` is the physics body', '`Collider` is the contact shape']) },
-      { id: 'l5-trigger', kind: 'observe', activity: 'predict', duration: 8, title: text('Collision ve trigger sahnesi', 'Collision and trigger scene'), description: text('Oyuncuyu iki farklı alandan geçir; katı çarpışma ile olay algılayan trigger’ın farkını animasyonla gör.', 'Move the player through two volumes and see the animated difference between solid collision and event-detecting trigger.'), bullets: list(['`Is Trigger` hareket tepkisini değiştirir', 'Trigger görünmez bir algılama alanı olabilir'], ['`Is Trigger` changes the movement response', 'A trigger can be an invisible detection volume']) },
-      { id: 'l5-requirements', kind: 'practice', activity: 'sort', duration: 7, title: text('Fizik tarifini tamamla', 'Complete the physics recipe'), description: text('Trigger callback’inin çalışması için gereken Collider, Rigidbody ve ayar kartlarını doğru sisteme yerleştir.', 'Place the Collider, Rigidbody, and setting cards needed for a trigger callback into the correct system.'), bullets: list(['İki tarafta Collider gerekir', 'Fizik etkileşiminde taraflardan en az birinde Rigidbody beklenir'], ['Both sides need a Collider', 'At least one side is expected to have a Rigidbody in a physics interaction']) },
-      { id: 'l5-inspector', kind: 'observe', activity: 'spot', duration: 7, title: text('SerializeField ve referans laboratuvarı', 'SerializeField and reference laboratory'), description: text('Inspector alanına Component sürükle; eksik referansın ürettiği hatayı kod satırıyla ilişkilendir.', 'Drag a Component into an Inspector field and connect a missing reference error to the code line.'), bullets: list(['`private` dış erişimi sınırlar', '`[SerializeField]` alanı Inspector’da düzenlenebilir yapar'], ['`private` limits outside access', '`[SerializeField]` makes a field editable in the Inspector']) },
-      { id: 'l5-code', kind: 'practice', activity: 'code', duration: 11, title: text('Component referansı ve trigger callback’i', 'Component reference and trigger callback'), description: text('Rigidbody referansını ve `OnTriggerEnter` callback’ini sıfırdan yaz; dosya, satır ve parametre hatalarını Problems panelinden düzelt.', 'Write the Rigidbody reference and `OnTriggerEnter` callback from scratch; fix file, line, and parameter errors from Problems.'), bullets: list(['Gerektiğinde `[SerializeField] private` kullan', 'Parametre adı tanım ve kullanımda aynı olmalı'], ['Use `[SerializeField] private` when appropriate', 'The parameter name must match in declaration and usage']) },
-      { id: 'l5-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Modül 1 final senaryosu', 'Module 1 final scenario'), description: text('Bir pickup sistemini tür, koşul, callback ve Component kararlarıyla uçtan uca çöz.', 'Solve a pickup system end to end using type, condition, callback, and Component decisions.'), bullets: list(['Kodun ne zaman ve neden çalıştığını açıkla', 'Bir hatayı teknik adıyla teşhis et'], ['Explain when and why the code runs', 'Diagnose one fault by its technical name']) },
-    ],
-  },
-  {
-    id: 'lesson-6', order: 6, duration: 60, fileName: 'LoopPractice.cs',
-    title: text('Döngüler ve koleksiyonlara giriş', 'Loops and an introduction to collections'),
-    summary: text('Tekrarlanan oyun işlerini kopyala-yapıştır yerine kontrollü döngülerle çöz; başlangıç, koşul ve ilerleme parçalarını güvenle oku.', 'Replace copied game actions with controlled loops and read the initialiser, condition, and iterator safely.'),
-    taskTitle: text('Üç öğeyi kontrollü bir döngüyle işle.', 'Process three items with a controlled loop.'),
-    taskBody: text('`Start` içinde `for (int index = 0; index < 3; index++)` döngüsünü kur ve her turda `Debug.Log(index);` çalıştır. Döngünün neden tam üç kez çalıştığını açıklayabilmelisin.', 'Inside `Start`, build `for (int index = 0; index < 3; index++)` and run `Debug.Log(index);` on each iteration. Be able to explain why it runs exactly three times.'),
-    successMessage: text('Döngünün sınırı güvenli ve her tur gözlemlenebilir. Tekrarı artık kopyalamadan yönetebilirsin.', 'The loop boundary is safe and every iteration is observable. You can now manage repetition without copying code.'),
-    concepts: ['for', 'foreach', 'while', 'iteration', 'index', 'collection'], starterCode: '',
-    steps: [
-      { id: 'l6-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Koşul bilgisini döngüye taşı', 'Carry conditions into loops'), description: text('Bir `if` yalnızca karar verirken döngünün aynı kararı tekrar tekrar nasıl kullandığını gör.', 'See how a loop reuses a decision repeatedly while an `if` makes it once.'), bullets: list(['Döngü sihirli tekrar değildir', 'Her turdan önce koşul yeniden değerlendirilir'], ['A loop is not magical repetition', 'Its condition is evaluated before every iteration']) },
-      { id: 'l6-model', kind: 'learn', activity: 'sequence', duration: 8, title: text('Bir turun yaşam döngüsü', 'The lifecycle of one iteration'), description: text('Başlangıç, koşul, gövde ve ilerleme adımlarını hareketli bir akış halinde sırala.', 'Order initialisation, condition, body, and iteration as a moving flow.'), bullets: list(['Başlangıç bir kez çalışır', 'Koşul her turdan önce sorulur', 'İlerleme unutulursa döngü bitmeyebilir'], ['Initialisation runs once', 'The condition is asked before each iteration', 'Without progress a loop may never end']) },
-      { id: 'l6-for', kind: 'learn', activity: 'match', duration: 8, title: text('for döngüsünü parçala', 'Dissect a for loop'), description: text('`for (int index = 0; index < 3; index++)` içindeki üç kontrol parçasını görevleriyle eşleştir.', 'Match the three control parts of `for (int index = 0; index < 3; index++)` to their responsibilities.'), bullets: list(['`index = 0` başlangıçtır', '`index < 3` güvenlik sınırıdır', '`index++` ilerlemedir'], ['`index = 0` initialises', '`index < 3` is the safety boundary', '`index++` advances']) },
-      { id: 'l6-foreach', kind: 'observe', activity: 'sort', duration: 7, title: text('for mı foreach mi?', 'for or foreach?'), description: text('İndeks gerektiren ve yalnızca öğeleri dolaşan oyun görevlerini doğru döngüye ayır.', 'Sort game tasks that need an index from those that only need each item.'), bullets: list(['`foreach` öğeyi doğrudan verir', '`for` sıra numarasını da kontrol eder'], ['`foreach` gives the item directly', '`for` also controls the position']) },
-      { id: 'l6-while', kind: 'observe', activity: 'debug', duration: 7, title: text('Sonsuz döngü dedektifi', 'Infinite-loop detective'), description: text('Bir `while` döngüsünde koşulu değiştirmeyen satırı bul ve Editor’ün neden donabileceğini açıkla.', 'Find the missing progress in a `while` loop and explain why the Editor can freeze.'), bullets: list(['Koşul sonunda `false` olabilmeli', 'Play Mode’u durduramamak tasarım hatasının belirtisidir'], ['The condition must eventually become `false`', 'Being unable to stop Play Mode signals a design fault']) },
-      { id: 'l6-budget', kind: 'practice', activity: 'sort', duration: 7, title: text('Tekrar bütçesini koru', 'Protect the repetition budget'), description: text('Küçük ve güvenli tekrarlarla frame başına binlerce işlem üreten kalıpları ayır.', 'Separate small safe repetitions from patterns that create thousands of operations per frame.'), bullets: list(['Döngü maliyeti tur sayısıyla büyür', '`Update` içindeki döngü her frame yeniden başlar'], ['Loop cost grows with iteration count', 'A loop inside `Update` restarts every frame']) },
-      { id: 'l6-code', kind: 'practice', activity: 'code', duration: 13, title: text('İlk güvenli for döngün', 'Your first safe for loop'), description: text('Boş dosyada sınıfı, `Start` callback’ini ve üç turluk döngüyü sıfırdan kur; sınır hatalarını Problems panelinden düzelt.', 'Build the class, `Start` callback, and a three-iteration loop from scratch; fix boundary errors from Problems.'), bullets: list(['Sayaç `0`dan başlar', 'Koşul `index < 3` olmalı', 'Her turda aynı `index` yazdırılmalı'], ['The counter starts at `0`', 'The condition must be `index < 3`', 'Print the same `index` each iteration']) },
-      { id: 'l6-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Döngü seçimi ustalık kontrolü', 'Loop-selection mastery check'), description: text('Yeni oyun görevlerinde doğru döngüyü seç, tur sayısını tahmin et ve riskli sınırı teşhis et.', 'Choose the right loop, predict iteration counts, and diagnose unsafe boundaries in new game tasks.'), bullets: list(['Önce kaç tur çalışacağını söyle', 'Seçimini görev ihtiyacıyla gerekçelendir'], ['State the iteration count first', 'Justify the choice from task needs']) },
-    ],
-  },
-  {
-    id: 'lesson-7', order: 7, duration: 60, fileName: 'InventoryList.cs',
-    title: text('Diziler, List ve veri dolaşımı', 'Arrays, Lists, and data iteration'),
-    summary: text('Birden fazla değeri tek isim altında düzenle; index sınırlarını, dizi ile List farkını ve güvenli dolaşımı oyun örnekleriyle kavra.', 'Organise multiple values under one name and understand index boundaries, arrays versus Lists, and safe iteration through game examples.'),
-    taskTitle: text('Dinamik bir envanteri oluştur ve dolaş.', 'Create and iterate through a dynamic inventory.'),
-    taskBody: text('`List<string> inventory` oluştur, en az iki öğe ekle ve `foreach` ile her öğeyi Console’a yazdır. `using System.Collections.Generic;` satırını unutma.', 'Create `List<string> inventory`, add at least two items, and print each item with `foreach`. Do not forget `using System.Collections.Generic;`.'),
-    successMessage: text('Liste doğru namespace ile kuruldu ve bütün öğeler güvenli biçimde dolaşıldı.', 'The List uses the correct namespace and every item is iterated safely.'),
-    concepts: ['array', 'List<T>', 'index', 'Count', 'Length', 'foreach'], starterCode: '',
-    steps: [
-      { id: 'l7-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Tek değerden veri grubuna', 'From one value to a data group'), description: text('Ayrı ayrı değişkenler yerine koleksiyon kullanmanın hangi problemi çözdüğünü bir envanter üzerinden gör.', 'See what collections solve compared with separate variables through an inventory.'), bullets: list(['Koleksiyon aynı türden değerleri gruplar', 'Tek isim altında düzenli dolaşım sağlar'], ['A collection groups values of one type', 'It enables orderly iteration under one name']) },
-      { id: 'l7-array', kind: 'learn', activity: 'match', duration: 8, title: text('Dizi anatomisi', 'Array anatomy'), description: text('Tür, köşeli parantez, öğeler, index ve `Length` kavramlarını gerçek bir loot dizisinde eşleştir.', 'Match type, brackets, items, index, and `Length` in a real loot array.'), bullets: list(['İlk index `0`dır', 'Son geçerli index `Length - 1`dir'], ['The first index is `0`', 'The last valid index is `Length - 1`']) },
-      { id: 'l7-index', kind: 'observe', activity: 'debug', duration: 7, title: text('Index sınırı dedektifi', 'Index-boundary detective'), description: text('Üç öğeli dizide `items[3]` kullanımının neden hata verdiğini satır ve değer tablosuyla bul.', 'Use the line and value table to find why `items[3]` fails for a three-item array.'), bullets: list(['Üç öğenin indexleri `0, 1, 2`dir', 'Adet ile son index aynı sayı değildir'], ['Three items have indices `0, 1, 2`', 'Count and final index are not the same number']) },
-      { id: 'l7-list', kind: 'learn', activity: 'sequence', duration: 8, title: text('List büyür ve küçülür', 'A List grows and shrinks'), description: text('Liste oluşturma, `Add`, okuma ve `Remove` adımlarını güvenli sıraya getir.', 'Order List creation, `Add`, reading, and `Remove` safely.'), bullets: list(['`List<T>` öğe türünü açıkça söyler', '`Count` o anki öğe sayısını verir'], ['`List<T>` states the item type explicitly', '`Count` gives the current number of items']) },
-      { id: 'l7-choose', kind: 'practice', activity: 'sort', duration: 7, title: text('Array mi List mi?', 'Array or List?'), description: text('Sabit spawn noktaları ile değişen envanter gibi senaryoları doğru veri yapısına ayır.', 'Sort scenarios such as fixed spawn points and changing inventories into the right data structure.'), bullets: list(['Sabit boyut: array', 'Çalışma anında değişen adet: List'], ['Fixed size: array', 'Runtime-changing count: List']) },
-      { id: 'l7-traverse', kind: 'practice', activity: 'match', duration: 7, title: text('Koleksiyonu güvenle dolaş', 'Iterate a collection safely'), description: text('`for`, `foreach`, `Length` ve `Count` parçalarını array/List bağlamlarında doğru göreve bağla.', 'Match `for`, `foreach`, `Length`, and `Count` to their proper array/List responsibilities.'), bullets: list(['Array adedi `Length` ile', 'List adedi `Count` ile okunur'], ['Array size uses `Length`', 'List size uses `Count`']) },
-      { id: 'l7-code', kind: 'practice', activity: 'code', duration: 13, title: text('Dinamik envanter uygulaması', 'Dynamic inventory practice'), description: text('Boş dosyada generic namespace’i, `List<string>` alanını, iki `Add` çağrısını ve `foreach` dolaşımını kur.', 'Build the generic namespace, `List<string>` field, two `Add` calls, and `foreach` traversal from scratch.'), bullets: list(['Generic namespace gerekli', 'Liste oluşturulmadan `Add` çağrılamaz', 'Dolaşılan öğeyi Console’a gönder'], ['The generic namespace is required', '`Add` needs an instantiated List', 'Send the iterated item to Console']) },
-      { id: 'l7-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Koleksiyon ustalık kontrolü', 'Collection mastery check'), description: text('Sınır, veri yapısı ve dolaşım seçimini yeni loot ve dalga sistemlerine aktar.', 'Transfer boundary, data-structure, and iteration decisions to new loot and wave systems.'), bullets: list(['Adet ile indexi karıştırma', 'Veri yapısını değişim ihtiyacına göre seç'], ['Do not confuse count with index', 'Choose the structure from mutation needs']) },
-    ],
-  },
-  {
-    id: 'lesson-8', order: 8, duration: 60, fileName: 'ScoreCounter.cs',
-    title: text('Class, object ve sorumluluk ayrımı', 'Classes, objects, and responsibility'),
-    summary: text('Class şablonu ile object örneğini ayır; tek sorumluluk ilkesini küçük ve test edilebilir oyun davranışlarına dönüştür.', 'Separate a class blueprint from object instances and turn single responsibility into small, testable game behaviours.'),
-    taskTitle: text('Tek sorumluluklu bir skor Component’i yaz.', 'Write a single-responsibility score Component.'),
-    taskBody: text('`ScoreCounter` sınıfında private `score` alanı oluştur. `AddPoints(int amount)` metodunda skoru artır ve güncel değeri Console’a yazdır; sınıfa hareket veya ses sorumluluğu ekleme.', 'Create a private `score` field in `ScoreCounter`. Increase it in `AddPoints(int amount)` and print the current value; do not add movement or audio responsibilities.'),
-    successMessage: text('Skor durumu ve skor davranışı tek, açık bir sorumlulukta toplandı.', 'Score state and behaviour now live in one clear responsibility.'),
-    concepts: ['class', 'object', 'instance', 'responsibility', 'method', 'state'], starterCode: '',
-    steps: [
-      { id: 'l8-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Script, class ve Component’i ayır', 'Separate script, class, and Component'), description: text('İlk dersteki modeli object ve instance kavramlarıyla genişlet.', 'Extend the first lesson’s model with objects and instances.'), bullets: list(['Dosya kodu taşır', 'Class şablondur', 'Component sahnedeki instance’tır'], ['The file carries code', 'The class is the blueprint', 'The Component is the scene instance']) },
-      { id: 'l8-blueprint', kind: 'learn', activity: 'match', duration: 8, title: text('Şablon ve örnek', 'Blueprint and instance'), description: text('Class içindeki tanım ile sahnedeki iki bağımsız object’in durumlarını eşleştir.', 'Match a class definition with the independent state of two scene objects.'), bullets: list(['Aynı class’tan çok object oluşabilir', 'Her instance kendi field değerini taşır'], ['One class can create many objects', 'Each instance owns its field values']) },
-      { id: 'l8-memory', kind: 'observe', activity: 'sort', duration: 7, title: text('Kime ait veri?', 'Who owns the data?'), description: text('Ortak class davranışı ile instance’a özel sağlık, ad ve konum değerlerini doğru kutulara ayır.', 'Sort shared class behaviour from per-instance health, name, and position values.'), bullets: list(['Metod tanımı class’tadır', 'Field değeri object örneğine aittir'], ['The method definition belongs to the class', 'A field value belongs to the object instance']) },
-      { id: 'l8-srp', kind: 'learn', activity: 'sort', duration: 8, title: text('Tek sorumluluk sınırı', 'Single-responsibility boundary'), description: text('Hareket, skor, ses ve sağlık işlerini doğru Component’lere böl.', 'Split movement, score, audio, and health work into the correct Components.'), bullets: list(['Bir değişiklik nedeni bir sınıfa işaret etmeli', 'Küçük Component’ler birlikte davranış oluşturur'], ['One reason to change should point to one class', 'Small Components cooperate to create behaviour']) },
-      { id: 'l8-collab', kind: 'practice', activity: 'sequence', duration: 7, title: text('Component işbirliği akışı', 'Component collaboration flow'), description: text('Pickup teması, skor artışı ve UI güncellemesini sorumlulukları karıştırmadan sırala.', 'Order pickup contact, score increase, and UI update without mixing responsibilities.'), bullets: list(['Teması pickup sistemi algılar', 'Skoru ScoreCounter değiştirir', 'UI yalnızca gösterir'], ['The pickup system detects contact', 'ScoreCounter changes score', 'UI only displays it']) },
-      { id: 'l8-smell', kind: 'observe', activity: 'debug', duration: 7, title: text('God class kokusunu bul', 'Find the God-class smell'), description: text('Tek sınıfa yığılmış alakasız işi belirle ve hangi sorumluluğun ayrılması gerektiğini söyle.', 'Identify unrelated work piled into one class and state which responsibility should move.'), bullets: list(['Uzun dosya tek başına kanıt değildir', 'Alakasız değişim nedenleri asıl sinyaldir'], ['A long file alone is not proof', 'Unrelated reasons to change are the real signal']) },
-      { id: 'l8-code', kind: 'practice', activity: 'code', duration: 13, title: text('ScoreCounter sınıfını kur', 'Build the ScoreCounter class'), description: text('Skor alanını ve `AddPoints` davranışını sıfırdan yaz; parametre ile field farkını doğrula.', 'Write the score field and `AddPoints` behaviour from scratch; verify the difference between a parameter and a field.'), bullets: list(['`score` kalıcı Component durumudur', '`amount` yalnızca metod çağrısının girdisidir', 'Metod yalnızca skoru yönetir'], ['`score` is persistent Component state', '`amount` is input for one method call', 'The method only manages score']) },
-      { id: 'l8-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Sorumluluk ustalık kontrolü', 'Responsibility mastery check'), description: text('Yeni bir görev sistemini class, object ve Component sınırlarıyla tasarla.', 'Design a new quest system using class, object, and Component boundaries.'), bullets: list(['Şablon ile örneği ayır', 'Her sınıfın değişim nedenini söyle'], ['Separate blueprint from instance', 'State each class’s reason to change']) },
-    ],
-  },
-  {
-    id: 'lesson-9', order: 9, duration: 60, fileName: 'PlayerConfig.cs',
-    title: text('Encapsulation: private, public, SerializeField', 'Encapsulation: private, public, SerializeField'),
-    summary: text('Veriyi gereksiz yere açmadan Inspector ayarı, kontrollü okuma ve güvenli değişiklik yolları tasarla.', 'Design Inspector settings, controlled reading, and safe mutation without exposing data unnecessarily.'),
-    taskTitle: text('Oyuncu ayarlarını kapsülle.', 'Encapsulate player configuration.'),
-    taskBody: text('`maxHealth` alanını `[SerializeField] private int` olarak, `currentHealth` alanını `private int` olarak tanımla. Dışarıya yalnızca `public int CurrentHealth => currentHealth;` ile okuma izni ver.', 'Declare `maxHealth` as `[SerializeField] private int` and `currentHealth` as `private int`. Expose read access only through `public int CurrentHealth => currentHealth;`.'),
-    successMessage: text('Inspector ayarı ile çalışma zamanı durumu ayrıldı; dış kod veriyi doğrudan bozamıyor.', 'Inspector configuration is separated from runtime state and outside code cannot mutate it directly.'),
-    concepts: ['private', 'public', 'SerializeField', 'property', 'encapsulation', 'API'], starterCode: '',
-    steps: [
-      { id: 'l9-recall', kind: 'prepare', activity: 'brief', duration: 5, title: text('Scope’tan erişim sınırına', 'From scope to access boundaries'), description: text('Bir field’ın nerede yaşadığı ile ona kimin erişebildiğinin farklı kararlar olduğunu hatırla.', 'Recall that where a field lives and who may access it are separate decisions.'), bullets: list(['Scope yaşam alanını belirler', 'Access modifier erişim yetkisini belirler'], ['Scope defines lifetime and visibility context', 'An access modifier defines permission']) },
-      { id: 'l9-access', kind: 'learn', activity: 'match', duration: 8, title: text('private ve public sözleşmesi', 'The private/public contract'), description: text('İç uygulama ayrıntısı ile dışarıya sunulan güvenli API’yi ayır.', 'Separate internal implementation details from the safe API offered outside.'), bullets: list(['Varsayılan tercih `private`', '`public` yalnızca bilinçli sözleşme için'], ['Prefer `private` by default', 'Use `public` only for a deliberate contract']) },
-      { id: 'l9-serialize', kind: 'learn', activity: 'sort', duration: 7, title: text('Inspector görünürlüğü erişim değildir', 'Inspector visibility is not public access'), description: text('`[SerializeField] private`, `public` ve düz `private` alanları kullanım amaçlarına göre ayır.', 'Sort `[SerializeField] private`, `public`, and plain `private` fields by intent.'), bullets: list(['SerializeField editör serileştirmesidir', 'Başka sınıflara yazma izni vermez'], ['SerializeField is editor serialisation', 'It does not grant other classes write access']) },
-      { id: 'l9-property', kind: 'learn', activity: 'match', duration: 8, title: text('Kontrollü okuma kapısı', 'A controlled read gate'), description: text('Field, read-only property, metod ve Inspector ayarının görevlerini eşleştir.', 'Match fields, read-only properties, methods, and Inspector settings to their responsibilities.'), bullets: list(['Property veriyi okuyabilir kılar', 'Değişiklik kurallı bir metoddan geçebilir'], ['A property can expose reading', 'Mutation can pass through a rule-enforcing method']) },
-      { id: 'l9-invariant', kind: 'observe', activity: 'sequence', duration: 7, title: text('Sağlık kuralını koru', 'Protect the health invariant'), description: text('Hasar alma, değeri sınırlandırma ve UI bildirimi adımlarını güvenli sıraya koy.', 'Order damage, clamping, and UI notification safely.'), bullets: list(['Veri her yerde doğrudan değiştirilmez', 'Tek değişim noktası kuralı korur'], ['Data is not changed directly everywhere', 'One mutation point preserves the rule']) },
-      { id: 'l9-debug', kind: 'observe', activity: 'debug', duration: 7, title: text('Kapsülleme ihlalini bul', 'Find the encapsulation breach'), description: text('Başka bir sınıfın `currentHealth` değerine doğrudan yazdığı satırı bul ve güvenli alternatifi seç.', 'Find where another class writes `currentHealth` directly and choose the safe alternative.'), bullets: list(['Derlenmesi tasarımın iyi olduğu anlamına gelmez', 'Yetkiyi ihtiyaç kadar aç'], ['Compiling does not guarantee good design', 'Grant only the access that is needed']) },
-      { id: 'l9-code', kind: 'practice', activity: 'code', duration: 13, title: text('Kapsüllenmiş PlayerConfig', 'Encapsulated PlayerConfig'), description: text('Inspector ayarı, private runtime state ve read-only property’yi sıfırdan kur.', 'Build Inspector configuration, private runtime state, and a read-only property from scratch.'), bullets: list(['`maxHealth` Inspector’dan ayarlanır', '`currentHealth` dışarıdan yazılamaz', '`CurrentHealth` yalnızca okuma sunar'], ['`maxHealth` is configured in Inspector', '`currentHealth` cannot be written externally', '`CurrentHealth` only exposes reading']) },
-      { id: 'l9-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('API tasarımı ustalık kontrolü', 'API-design mastery check'), description: text('Yeni ekonomi ve enerji verilerinde hangi parçanın private, serialized veya read-only olacağına karar ver.', 'Decide which economy and energy data should be private, serialised, or read-only.'), bullets: list(['En az yetki ilkesini uygula', 'Inspector ihtiyacı ile kod erişimini ayır'], ['Apply least privilege', 'Separate Inspector needs from code access']) },
-    ],
-  },
-  {
-    id: 'lesson-10', order: 10, duration: 60, fileName: 'PrefabHealth.cs',
-    title: text('Prefab ve yeniden kullanılabilir yapı', 'Prefabs and reusable structure'),
-    summary: text('Prefab asset’i, sahne instance’ı ve override ilişkisini anlayarak tekrar kullanılabilir, güvenli ayarlanabilir oyun nesneleri kur.', 'Build reusable, safely configurable game objects by understanding prefab assets, scene instances, and overrides.'),
-    taskTitle: text('Prefab’a uygun bir sağlık Component’i oluştur.', 'Create a prefab-friendly health Component.'),
-    taskBody: text('`PrefabHealth` içinde `[SerializeField] private int maxHealth = 100;` ve `private int currentHealth;` alanlarını oluştur. `Awake` içinde `currentHealth = maxHealth;` atamasını yap.', 'In `PrefabHealth`, create `[SerializeField] private int maxHealth = 100;` and `private int currentHealth;`. Assign `currentHealth = maxHealth;` inside `Awake`.'),
-    successMessage: text('Her prefab instance’ı ortak şablondan doğuyor ve kendi çalışma zamanı sağlığını güvenle başlatıyor.', 'Every prefab instance starts from the shared template and safely initialises its own runtime health.'),
-    concepts: ['Prefab Asset', 'instance', 'override', 'Apply', 'Revert', 'variant'], starterCode: '',
-    steps: [
-      { id: 'l10-recall', kind: 'prepare', activity: 'mastery', duration: 7, title: text('Modül 2 aralıklı tekrar', 'Module 2 spaced review'), description: text('Döngü, koleksiyon, instance ve kapsülleme kararlarını prefab bağlamına girmeden önce karışık sorularla geri çağır.', 'Recall loops, collections, instances, and encapsulation through mixed questions before entering prefabs.'), bullets: list(['Yeni bilgi öncesi geri çağır', 'Unutulan kavramın açıklamasını yeniden aç'], ['Recall before new learning', 'Reopen explanations for forgotten concepts']) },
-      { id: 'l10-model', kind: 'learn', activity: 'match', duration: 8, title: text('Asset, instance ve bağlantı', 'Asset, instance, and connection'), description: text('Project’teki Prefab Asset ile Hierarchy’deki sahne instance’ını ve aralarındaki bağı eşleştir.', 'Match the Prefab Asset in Project, the scene instance in Hierarchy, and the connection between them.'), bullets: list(['Asset kaynak şablondur', 'Instance sahnedeki somut örnektir', 'Bağ değişiklik akışını taşır'], ['The asset is the source template', 'The instance is the scene object', 'The connection carries change flow']) },
-      { id: 'l10-override', kind: 'observe', activity: 'sequence', duration: 7, title: text('Override akışını yönet', 'Manage the override flow'), description: text('Instance değerini değiştir, farkı incele ve bilinçli olarak `Apply` veya `Revert` kararına götür.', 'Change an instance value, inspect the difference, and make a deliberate `Apply` or `Revert` decision.'), bullets: list(['Override yalnızca bu instance’a aittir', '`Apply` kaynağı değiştirir', '`Revert` kaynağa geri döner'], ['An override belongs to one instance', '`Apply` changes the source', '`Revert` returns to the source']) },
-      { id: 'l10-variants', kind: 'practice', activity: 'sort', duration: 8, title: text('Prefab Variant ne zaman?', 'When should you use a Prefab Variant?'), description: text('Ortak temeli koruyan kalıcı tür farkları ile tek instance’a özel ayarları ayır.', 'Separate persistent type differences sharing a base from one-instance adjustments.'), bullets: list(['Variant kalıcı bir alt şablondur', 'Override geçici/yerel fark olabilir'], ['A Variant is a persistent derived template', 'An override can be a local difference']) },
-      { id: 'l10-nested', kind: 'learn', activity: 'sort', duration: 7, title: text('Nested Prefab sorumlulukları', 'Nested Prefab responsibilities'), description: text('Tekerlek, görsel, sağlık barı ve araç gövdesi gibi parçaları doğru yeniden kullanım sınırına ayır.', 'Sort wheels, visuals, health bars, and vehicle bodies into sensible reuse boundaries.'), bullets: list(['Alt prefab tek başına anlamlı olmalı', 'Aşırı nesting düzenlemeyi zorlaştırabilir'], ['A child prefab should be meaningful alone', 'Excessive nesting can make editing harder']) },
-      { id: 'l10-workflow', kind: 'observe', activity: 'debug', duration: 7, title: text('Kırık prefab bağlantısını teşhis et', 'Diagnose a broken prefab connection'), description: text('Sahne kopyası ile Prefab instance’ı arasındaki farkı Inspector işaretlerinden okuyup yanlış workflow adımını bul.', 'Read Inspector cues to distinguish a scene copy from a Prefab instance and find the wrong workflow step.'), bullets: list(['Duplicate her zaman yeni prefab değildir', 'Project asset’i silmek instance’ları etkiler'], ['Duplicate does not always create a prefab', 'Deleting the Project asset affects instances']) },
-      { id: 'l10-code', kind: 'practice', activity: 'code', duration: 11, title: text('Prefab dostu sağlık Component’i', 'Prefab-friendly health Component'), description: text('Ortak `maxHealth` ayarı ile instance’a özel runtime `currentHealth` durumunu sıfırdan ayır.', 'Separate shared `maxHealth` configuration from per-instance runtime `currentHealth` state from scratch.'), bullets: list(['Ayar serialized private field olur', 'Runtime değer private kalır', '`Awake` her instance’ı kendi değeriyle başlatır'], ['Configuration is a serialised private field', 'Runtime state remains private', '`Awake` initialises each instance']) },
-      { id: 'l10-mastery', kind: 'reflect', activity: 'mastery', duration: 5, title: text('Modül 2 final senaryosu', 'Module 2 final scenario'), description: text('Üç düşman türünü base prefab, variant, override ve Component kararlarıyla uçtan uca tasarla.', 'Design three enemy types end to end using a base prefab, variants, overrides, and Components.'), bullets: list(['Tekrar kullanılabilir sınırı gerekçelendir', 'Apply/Revert etkisini önceden söyle'], ['Justify the reuse boundary', 'Predict Apply/Revert impact']) },
-    ],
+    id:'lesson-003-unity-environment-setup', order:3, module:1, duration:108, status:'published', fileName:'', starterCode:'',
+    title:text('Unity Hub, Editor ve Kod Editörü Kurulumu'),
+    summary:text('Hub, Editor, IDE, lisans ve platform modüllerinin görevlerini ayırıp doğrulanmış bir geliştirme ortamı planlayacaksın.'),
+    taskTitle:text('Doğrulanmış geliştirme ortamını kur.'), taskBody:text('Sürümü sabitle, yalnız gerekli modülleri seç, IDE bağlantısını ve beş sağlık kanıtını tamamla.'),
+    successMessage:text('Atölyenin her parçasını görevi ve kanıtıyla doğrulayabiliyorsun.'), concepts:['Hub','Editor','IDE','modül','lisans','sürüm','kurulum'], steps:lesson3Steps,
+    badge:{tr:{name:'Atölye Mimarı',description:'Unity geliştirme zincirini doğruladın.'},en:{name:'Atölye Mimarı',description:'Unity geliştirme zincirini doğruladın.'}},
   },
 ];
 
-const planTitles: [string, string][] = [
-  ['C#, Unity ve ilk çalışan script', 'C#, Unity, and your first working script'],
-  ['Değişkenler, türler ve isimlendirme', 'Variables, types, and naming'],
-  ['Operatörler ve koşullu kararlar', 'Operators and conditional decisions'],
-  ['Metodlar ve Unity yaşam döngüsü', 'Methods and the Unity lifecycle'],
-  ['GameObject, Component ve ilk fizik teması', 'GameObjects, Components, and first physics contact'],
-  ['Döngüler ve koleksiyonlara giriş', 'Loops and an introduction to collections'],
-  ['Diziler, List ve veri dolaşımı', 'Arrays, Lists, and data iteration'],
-  ['Class, object ve sorumluluk ayrımı', 'Classes, objects, and responsibility'],
-  ['Encapsulation: private, public, SerializeField', 'Encapsulation: private, public, SerializeField'],
-  ['Prefab ve yeniden kullanılabilir yapı', 'Prefabs and reusable structure'],
-  ['Transform, yönler ve koordinat uzayları', 'Transform, directions, and coordinate spaces'],
-  ['Input System ve oyuncu kontrolü', 'Input System and player control'],
-  ['Rigidbody hareketi ve kuvvetler', 'Rigidbody movement and forces'],
-  ['Collision, trigger ve layer matrisi', 'Collisions, triggers, and the layer matrix'],
-  ['Kamera takibi ve LateUpdate', 'Camera follow and LateUpdate'],
-  ['UI temelleri ve responsive Canvas', 'UI fundamentals and responsive Canvas'],
-  ['Event, delegate ve gevşek bağlı iletişim', 'Events, delegates, and decoupled communication'],
-  ['ScriptableObject ile veri tasarımı', 'Data design with ScriptableObjects'],
-  ['State machine ile oyun akışı', 'Game flow with a state machine'],
-  ['Object pooling ve mobil performans', 'Object pooling and mobile performance'],
-  ['Async akışlar ve sahne yükleme', 'Async flows and scene loading'],
-  ['DOTween ve üçüncü parti paket yönetimi', 'DOTween and third-party package management'],
-  ['Git, SourceTree ve güvenli branch akışı', 'Git, SourceTree, and a safe branch workflow'],
-  ['Idle ekonomi ve kayıt sistemi', 'Idle economy and save systems'],
-  ['Endless runner dikey dilimi', 'Endless runner vertical slice'],
-  ['Reklam, analitik ve etik monetizasyon', 'Ads, analytics, and ethical monetisation'],
-  ['Profiling, build ve cihaz testleri', 'Profiling, builds, and device testing'],
-  ['Polish, yayın kontrolü ve final sunumu', 'Polish, release checks, and final presentation'],
-];
+const catalogTitles = `
+Oyun Bilgisayarda Nasıl Çalışır? Komut, Kural, Durum ve Görüntü
+Dosya, Klasör, Uzantı ve Proje: Geliştiricinin Çalışma Masası
+Unity Hub, Editor ve Kod Editörü Kurulumu
+İlk Projeyi Doğru Şablonla Oluşturmak
+Unity Editor Haritası: Scene, Game, Hierarchy, Inspector, Project ve Console
+GameObject, Component ve Transform ile Kodsuz İlk Sahne
+İlk Script Dosyası: Oluştur, Adlandır, Aç ve Component Olarak Bağla
+C# Kodunun Anatomisi: using, class, :, { }, ; ve Yorumlar
+Start ve İlk Debug.Log: Unity Kodu Ne Zaman Çalıştırır?
+Console'u Okumak: Log, Warning, Error ve Stack Trace
+İlk Hatalar: Büyük–Küçük Harf, Parantez, Noktalı Virgül ve Dosya Adı
+İlk Davranış Laboratuvarı: Açılışta Kendini Tanıtan Nesne
+Değişken Nedir? Ad, Tür, Değer ve Bellek Kutusu
+Temel Veri Türleri: int, float, bool ve string
+Bildirim, İlk Değer, Atama ve const
+İsimlendirme ve Okunabilirlik: camelCase, Anahtar Kelimeler ve Case Sensitivity
+Aritmetik Operatörler ve İşlem Önceliği
+Karşılaştırma ve Mantık Operatörleriyle Canlı Oyuncu Durumu
+if, else if, else: Oyuna Karar Verdirme
+Birleşik Koşullar, Guard Clause ve switch
+Metot Nedir? Adlandırılmış Bir İş Oluşturmak
+Parametre, Argüman ve Dönüş Değeri
+Field, Yerel Değişken, Scope ve SerializeField
+Unity Yaşam Döngüsü: Awake'tan OnDestroy'a Doğru Zamanı Seçmek
+for Döngüsü: Başlangıç, Koşul, Değişim ve Tur
+while, do while, break ve continue
+Diziler: Sabit Uzunluk, Index ve Sınırlar
+List<T>: Büyüyen ve Küçülen Veri Grubu
+foreach, Arama, Filtreleme ve Toplama
+Dictionary<TKey,TValue> ve Veri Laboratuvarı
+class, Object ve Instance: Şablondan Ayrı Nesnelere
+Constructor ve Unity Nesne Yaşamı: new Nerede Kullanılır?
+Encapsulation: private, public ve Property ile Kural Korumak
+Value Type, Reference Type ve null
+Composition ve Inheritance: Unity'de Davranışı Nasıl Bölmeliyiz?
+Interface ve Polymorphism ile Hasar Alabilen Dünya
+enum: Sınırlı Durumları Güvenli Adlarla Modellemek
+struct ve Unity'nin Değer Türleri: Vector2, Vector3, Color
+static: Ortak Üyeler, Yardımcı Sınıflar ve Global Durum Riski
+Namespace, Assembly ve using: Kod Nereden Geliyor?
+Generic Türler: T Ne Demektir?
+Lambda ve LINQ'a Kontrollü Giriş
+Koordinat Sistemi ve Vektör: X, Y, Z ile Yönü Okumak
+Transform: Position, Rotation, Scale; Local ve World Space
+Vektör İşlemleri: Yön, Mesafe, Magnitude ve Normalize
+Frame, Zaman ve deltaTime: Bilgisayardan Bağımsız Hareket
+Input System Temeli: Action, Action Map, Binding ve PlayerInput
+Klavye, Gamepad ve Dokunmatik Kontrol Parkuru
+Rigidbody: Kütle, Yerçekimi, Kuvvet ve Hız
+Collider, Physics Material, Layer ve Çarpışma Matrisi
+Collision ve Trigger Callback'leri
+Raycast, SphereCast ve LayerMask ile Dünyayı Sorgulamak
+CharacterController mı Rigidbody mi? Zemin ve Hareket Kararı
+Fizik Hata Ayıklama ve Hedefe Ulaş Mini Oyunu
+Asset Pipeline: Import Ayarları, .meta, GUID, Package Manager ve Lisans
+Prefab: Asset, Instance, Override, Variant ve Nested Prefab
+Instantiate, Destroy, Spawn Noktası ve Nesne Ömrü
+Scene Management: Geçiş, Additive Yükleme ve Kalıcı Nesneler
+Kamera Dili ve Cinemachine: Takip, Kadraj, Sınır ve Blend
+Çok Sahneli Arena: Prefab, Spawn ve Kamera Boss Görevi
+Unity UI Haritası: uGUI, UI Toolkit, Canvas ve Render Mode
+Responsive HUD: Anchor, Pivot, Layout Group ve Text
+Menü, Buton, Klavye/Gamepad Odağı ve Erişilebilirlik
+Oyun Sesi: AudioClip, AudioSource, Listener ve Audio Mixer
+Animation: Clip, Animator Controller, Parametre ve Transition
+Game Feel: Particle, Trail, Tween, Kamera Sarsıntısı ve Ölçülü Geri Bildirim
+Sprite Import, Pixels Per Unit, Sorting Layer ve Sprite Atlas
+Grid ve Tilemap ile 2D Seviye Kurmak
+Rigidbody2D ile Hareket, Zıplama ve Zemin Kontrolü
+2D Animasyon, Yön Çevirme, Coyote Time ve Input Buffer
+2D Düşman, Hasar, Pickup ve Checkpoint Sistemi
+2D Platformer Dikey Dilimi: Başlangıçtan Sonuç Ekranına
+URP'de Material, Texture, Shader Kavramı ve Aydınlatma
+3D Greybox ve Seviye Okunabilirliği
+3D Karakter Kontrolü: Yürüme, Dönüş, Eğim ve Zıplama
+3D Kamera ve Raycast Etkileşimi
+NavMesh Düşman Yapay Zekâsı, Blend Tree ve Root Motion Kararı
+3D Macera Dikey Dilimi: Işık, Yapay Zekâ ve Amaç Döngüsü
+Delegate, Action, Event ve UnityEvent: Sistemleri Gevşek Bağlamak
+ScriptableObject ile Veri Tasarımı ve Runtime Tuzakları
+State Machine ile Oyun ve Karakter Durumları
+GameManager, Service ve Singleton: Yaşam Süresi ile Bağımlılık Kararı
+Kayıt Temeli: PlayerPrefs, JSON ve Kalıcı Dosya Yolu
+Dayanıklı Kayıt: Sürümleme, Migration, Doğrulama ve Bozuk Veri Kurtarma
+Coroutine: Frame'lere Yayılan İş ve Bekleme Akışı
+async/await: Task, Ana Thread ve İptal Sorumluluğu
+Asenkron Sahne Yükleme ve Gerçek İlerleme Ekranı
+Addressables Temeli: Adres, Grup, Handle ve Yaşam Süresi
+Profiler: CPU, GPU, Memory, Frame Debugger ve Ölçüm Disiplini
+GC Allocation, Object Pooling, Bütçe ve Optimizasyon Boss Görevi
+Git Temeli: Repository, Commit, .gitignore ve Unity .meta Dosyaları
+Branch, Merge, Conflict, SourceTree ve Uzak Depo Akışı
+Test Runner, PlayMode/EditMode Testleri, Debugger ve Refactoring
+Build Ayarları, Development Build, Log ve Gerçek Cihaz Testi
+Erişilebilirlik, Lokalizasyon, Ayarlar ve Veri Gizliliği
+Analytics, Reklam, IAP, Etik Monetizasyon ve Yayın Kontrolü
+Fikirden Yapılabilir Oyuna: Hedef Oyuncu, Temel Fantezi ve Kapsam
+Game Design Document, Teknik Tasarım, Risk Listesi ve Üretim Panosu
+Final Proje I: Oynanabilir Çekirdek Döngü
+Final Proje II: İçerik, UI, Ses, Geri Bildirim ve Kayıt
+Final Proje III: QA, Kullanılabilirlik, Erişilebilirlik ve Profiling
+Release Candidate, Portföy Vaka Çalışması ve Postmortem
+`.trim().split('\n');
 
-export const coursePlan: CoursePlanItem[] = planTitles.map(([tr, en], index) => ({
-  order: index + 1,
-  module: index < 5 ? 1 : index < 10 ? 2 : index < 15 ? 3 : index < 20 ? 4 : index < 24 ? 5 : 6,
-  duration: 60,
-  title: text(tr, en),
+export const coursePlan: CoursePlanItem[] = catalogTitles.map((title, index) => ({
+  order:index + 1,
+  module:Math.floor(index / 6) + 1,
+  duration:index === 0 ? 98 : index === 1 ? 99 : index === 2 ? 108 : 90,
+  title:text(title),
+  status:index < 3 ? 'published' : 'preparing',
 }));
 
 export const getLesson = (lessonId: string): Lesson => lessons.find((lesson) => lesson.id === lessonId) ?? lessons[0];
+export const lessonIdForOrder = (order: number) => lessons.find((lesson) => lesson.order === order)?.id;
