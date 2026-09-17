@@ -316,7 +316,7 @@ function StudentDashboard({ t, locale, view, setView, lessonId, stepId, onStep, 
   return (
     <div className="dashboard enter-view">
       <div className="page-intro">
-        <div><p className="section-kicker">{t('greeting')}, Deniz</p><h1>{locale === 'tr' ? 'Temeli anlayarak ilk kodunu çalıştır.' : 'Run your first code by understanding the foundation.'}</h1><p>{locale === 'tr' ? 'Sıfırdan başlıyoruz. Her kavram kısa anlatım, canlı uygulama, kontrollü kodlama ve geri çağırma adımlarıyla ilerleyecek.' : 'We are starting from zero. Every concept progresses through a short explanation, live practice, checked coding, and recall.'}</p></div>
+        <div><p className="section-kicker">{t('greeting')}, Deniz</p><h1>{locale === 'tr' ? 'Sıfırdan başlayıp oyunların nasıl çalıştığını gerçekten anla.' : 'Start from zero and truly understand how games work.'}</h1><p>{locale === 'tr' ? 'Kod yazmadan önce bilgisayarın, dosyaların, projelerin ve Unity’nin temel parçalarını kuruyoruz. Her yeni kavram; ayrıntılı anlatım, görsel keşif, kontrollü deneme, mini oyun ve açıklamalı tekrarlarla ilerliyor.' : 'Before writing code, we build a clear model of computers, files, projects, and Unity. Every new concept unfolds through detailed teaching, visual exploration, guided practice, mini-games, and explained review.'}</p></div>
         <div className="streak-card"><Icon name="spark" /><span><strong>{progress.streak}</strong><small>{locale === 'tr' ? 'günlük seri' : 'day streak'}</small></span></div>
       </div>
 
@@ -332,7 +332,7 @@ function StudentDashboard({ t, locale, view, setView, lessonId, stepId, onStep, 
       </section>
 
       <div className="metric-grid">
-        <article className="metric-card"><span className="metric-icon violet"><Icon name="repeat" /></span><div><p>{t('reviewQueue')}</p><strong>0</strong><small>{locale === 'tr' ? 'İlk tekrar 5. derste açılır' : 'First review unlocks in lesson 5'}</small></div><button type="button" aria-label={t('reviewQueue')}><Icon name="chevron-right" /></button></article>
+        <article className="metric-card"><span className="metric-icon violet"><Icon name="repeat" /></span><div><p>{t('reviewQueue')}</p><strong>0</strong><small>{locale === 'tr' ? 'Öğrendiğin kavramlar biriktikçe açılır' : 'Unlocks as your learned concepts accumulate'}</small></div><button type="button" aria-label={t('reviewQueue')}><Icon name="chevron-right" /></button></article>
         <article className="metric-card"><span className="metric-icon coral"><Icon name="gauge" /></span><div><p>{t('mastery')}</p><strong>%{courseCompletion(progress, coursePlan.length)}</strong><small>{progress.xp} XP · {progress.completedLessons.length} / {coursePlan.length} {locale === 'tr' ? 'ders' : 'lessons'}</small></div><div className="ring" aria-label={`${courseCompletion(progress, coursePlan.length)}%`}><span>{courseCompletion(progress, coursePlan.length)}</span></div></article>
       </div>
 
