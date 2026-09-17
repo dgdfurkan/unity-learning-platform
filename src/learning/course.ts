@@ -1,7 +1,8 @@
 import type { Locale } from '../domain/models';
+import { foundationLessons } from './foundationLessons';
 
 export type LessonStepKind = 'prepare' | 'teach' | 'observe' | 'practice' | 'simulate' | 'debug' | 'lab' | 'game' | 'test' | 'finale';
-export type LessonActivityKind = 'reveal' | 'classify' | 'order' | 'connect' | 'decide' | 'simulate' | 'match' | 'checklist' | 'debug' | 'lab' | 'game' | 'finale' | 'brief' | 'hotspot' | 'sequence' | 'fill' | 'inspector' | 'predict' | 'spot' | 'sort' | 'console' | 'code' | 'mastery';
+export type LessonActivityKind = string;
 
 export interface LessonStep {
   id: string;
@@ -130,6 +131,7 @@ export const lessons: Lesson[] = [
     successMessage:text('Atölyenin her parçasını görevi ve kanıtıyla doğrulayabiliyorsun.'), concepts:['Hub','Editor','IDE','modül','lisans','sürüm','kurulum'], steps:lesson3Steps,
     badge:{tr:{name:'Atölye Mimarı',description:'Unity geliştirme zincirini doğruladın.'},en:{name:'Atölye Mimarı',description:'Unity geliştirme zincirini doğruladın.'}},
   },
+  ...foundationLessons,
 ];
 
 const catalogTitles = `
@@ -240,9 +242,9 @@ Release Candidate, Portföy Vaka Çalışması ve Postmortem
 export const coursePlan: CoursePlanItem[] = catalogTitles.map((title, index) => ({
   order:index + 1,
   module:Math.floor(index / 6) + 1,
-  duration:index === 0 ? 98 : index === 1 ? 99 : index === 2 ? 108 : 90,
+  duration:index === 0 ? 98 : index === 1 ? 99 : index === 2 ? 108 : index === 3 ? 96 : index === 4 ? 104 : index === 5 ? 101 : 90,
   title:text(title),
-  status:index < 3 ? 'published' : 'preparing',
+  status:index < 6 ? 'published' : 'preparing',
 }));
 
 export const getLesson = (lessonId: string): Lesson => lessons.find((lesson) => lesson.id === lessonId) ?? lessons[0];

@@ -153,7 +153,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
   const [selectedLessonId, setSelectedLessonId] = useState(lessons[0].id);
   const [activeStepId, setActiveStepId] = useState(lessons[0].steps[0].id);
   const [progress, setProgress] = useState<LearningProgress>(loadProgress);
-  const [awardPulse, setAwardPulse] = useState<{ xp: number; title: string; streak: boolean } | null>(null);
+  const [awardPulse, setAwardPulse] = useState<{ xp: number; title: string; streak: boolean; total: number } | null>(null);
   const scrollGlowTimer = useRef<number | null>(null);
   const scrollFallbackTimer = useRef<number | null>(null);
   const isAdmin = session.role === 'admin';
@@ -183,7 +183,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const scrollToLearningTop = () => {
+  const scrollToActiveStep = () => {
     if (scrollGlowTimer.current !== null) window.clearTimeout(scrollGlowTimer.current);
     if (scrollFallbackTimer.current !== null) window.clearTimeout(scrollFallbackTimer.current);
     document.documentElement.classList.remove('learning-scroll');
@@ -193,17 +193,24 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     const scroller = document.scrollingElement ?? document.documentElement;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const behavior: ScrollBehavior = reduceMotion ? 'auto' : 'smooth';
-    scroller.scrollTo({ top: 0, behavior });
-    window.scrollTo({ top: 0, behavior });
+    const getTargetTop = () => {
+      const target = document.querySelector<HTMLElement>('[data-active-step-top]');
+      if (!target) return 0;
+      return Math.max(0, target.getBoundingClientRect().top + window.scrollY - 82);
+    };
+    const targetTop = getTargetTop();
+    scroller.scrollTo({ top: targetTop, behavior });
+    window.scrollTo({ top: targetTop, behavior });
 
     scrollFallbackTimer.current = window.setTimeout(() => {
       const scrollSurface = scroller as HTMLElement;
       const previousBehavior = scrollSurface.style.scrollBehavior;
       scrollSurface.style.scrollBehavior = 'auto';
-      scroller.scrollTo({ top: 0, behavior: 'auto' });
-      document.documentElement.scrollTop = 0;
-      document.body.scrollTop = 0;
-      document.querySelector<HTMLElement>('[data-lesson-top]')?.focus({ preventScroll: true });
+      const finalTop = getTargetTop();
+      scroller.scrollTo({ top: finalTop, behavior: 'auto' });
+      document.documentElement.scrollTop = finalTop;
+      document.body.scrollTop = finalTop;
+      document.querySelector<HTMLElement>('[data-active-step-top]')?.focus({ preventScroll: true });
       requestAnimationFrame(() => { scrollSurface.style.scrollBehavior = previousBehavior; });
       scrollFallbackTimer.current = null;
     }, reduceMotion ? 0 : 640);
@@ -217,7 +224,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     if (stepId === activeStepId) return;
     setActiveStepId(stepId);
     setMenuOpen(false);
-    scrollToLearningTop();
+    scrollToActiveStep();
   };
 
   const openLesson = (lessonId: string) => {
@@ -228,12 +235,12 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     setActiveStepId(resumeStep.id);
     setStudentView('lesson');
     setMenuOpen(false);
-    scrollToLearningTop();
+    scrollToActiveStep();
   };
 
   useEffect(() => {
     if (!inLesson) return;
-    const afterCommit = window.setTimeout(scrollToLearningTop, 0);
+    const afterCommit = window.setTimeout(scrollToActiveStep, 0);
     return () => window.clearTimeout(afterCommit);
   }, [activeStepId, selectedLessonId, inLesson]);
 
@@ -256,7 +263,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
     setProgress((current) => {
       const result = awardStep(current, lessonId, step, stepIndex === lesson.steps.length - 1);
       if (result.firstCompletion) {
-        setAwardPulse({ xp: result.awarded, title: localize(step.title, locale), streak: result.streakAdvanced });
+        setAwardPulse({ xp: result.awarded, title: localize(step.title, locale), streak: result.streakAdvanced, total: result.progress.xp });
         window.setTimeout(() => setAwardPulse(null), 2400);
       }
       return result.progress;
@@ -303,7 +310,7 @@ function WorkspaceShell({ session, t, locale, onLocale, online, onSignOut }: { s
       {inLesson ? <nav className="lesson-bottom-nav" aria-label={locale === 'tr' ? 'Ders adımı navigasyonu' : 'Lesson step navigation'}><button type="button" onClick={() => moveStep(-1)} disabled={activeStepIndex === 0}><Icon name="arrow-right" /><span>{locale === 'tr' ? 'Önceki' : 'Previous'}</span></button><button type="button" className="lesson-mobile-menu" onClick={() => setMenuOpen(true)}><span>{activeStepIndex + 1} / {selectedLesson.steps.length}</span><strong>{localize(selectedLesson.steps[activeStepIndex].title, locale)}</strong></button><button type="button" onClick={() => moveStep(1)} disabled={activeStepIndex === selectedLesson.steps.length - 1 || !(progress.completedSteps[selectedLesson.id] ?? []).includes(selectedLesson.steps[activeStepIndex].id)}><span>{locale === 'tr' ? 'Sonraki' : 'Next'}</span><Icon name="arrow-right" /></button></nav> : <nav className="bottom-nav" aria-label="Mobil navigasyon">
         {nav.map((item) => <button key={item.id} type="button" className={current === item.id ? 'active' : ''} onClick={() => navigate(item.id)} aria-current={current === item.id ? 'page' : undefined}><Icon name={item.icon} /><span>{t(item.label)}</span></button>)}
       </nav>}
-      {awardPulse && <div className="xp-burst" role="status"><div className="xp-particles" aria-hidden="true">{Array.from({ length: 8 }, (_, index) => <i key={index} />)}</div><span><Icon name="spark" /></span><div><small>{awardPulse.streak ? (locale === 'tr' ? 'Seri başladı · adım tamamlandı' : 'Streak started · step complete') : (locale === 'tr' ? 'Adım tamamlandı' : 'Step complete')}</small><strong>+{awardPulse.xp} XP</strong><p>{awardPulse.title}</p></div></div>}
+      {awardPulse && <div className="reward-receipt" role="status"><span className="reward-seal"><Icon name="check" /><small>XP</small></span><div className="reward-copy"><small>{awardPulse.streak ? (locale === 'tr' ? 'SERİ KORUNDU · ADIM TAMAM' : 'STREAK SAVED · STEP COMPLETE') : (locale === 'tr' ? 'ÖĞRENME KANITI KAYDEDİLDİ' : 'LEARNING EVIDENCE SAVED')}</small><strong>{awardPulse.title}</strong><p><b>+{awardPulse.xp} XP</b><span>Toplam {awardPulse.total} XP</span></p><i><em style={{ width: `${(awardPulse.total % 500) / 5}%` }} /></i></div></div>}
     </div>
   );
 }
@@ -350,7 +357,7 @@ function StudentDashboard({ t, locale, view, setView, lessonId, stepId, onStep, 
 }
 
 function LearningPath({ t, locale, expanded = false, onOpenLesson, onViewAll, progress }: { t: T; locale: Locale; expanded?: boolean; onOpenLesson: (lessonId: string) => void; onViewAll?: () => void; progress: LearningProgress }) {
-  const items = expanded ? coursePlan : coursePlan.slice(0, 5);
+  const items = expanded ? coursePlan : coursePlan.slice(0, 6);
   return (
     <section className={expanded ? 'path-panel path-page enter-view' : 'path-panel'} aria-labelledby="path-title">
       <div className="section-heading"><div><p className="section-kicker">{t('quickStart')}</p><h2 id="path-title">{t('learningPath')}</h2></div><span>{progress.completedLessons.length} / {coursePlan.length}</span></div>
@@ -358,7 +365,7 @@ function LearningPath({ t, locale, expanded = false, onOpenLesson, onViewAll, pr
       <ol className="path-list">
         {items.map((item) => { const lessonId = lessonIdForOrder(item.order); const priorId = lessonIdForOrder(item.order - 1); const published = Boolean(lessonId); const unlocked = item.order === 1 || (priorId ? progress.completedLessons.includes(priorId) : false); const available = published && unlocked; const done = lessonId ? progress.completedLessons.includes(lessonId) : false; return <li key={item.order} className={`path-item ${available ? 'ready' : 'locked'}${done ? ' completed' : ''}`}><span className="path-node">{done ? <Icon name="check" /> : available ? String(item.order).padStart(2, '0') : <Icon name="lock" />}</span><div><strong>{localize(item.title, locale)}</strong><small>{done ? (locale === 'tr' ? 'Tamamlandı · rozet kazanıldı' : 'Completed · badge earned') : published && !unlocked ? (locale === 'tr' ? `Modül ${item.module} · önceki dersi tamamla` : `Module ${item.module} · complete the previous lesson`) : (locale === 'tr' ? `Modül ${item.module} · ${available ? 'oynanabilir ders hazır' : 'içerik hazırlanıyor'}` : `Module ${item.module} · ${available ? 'playable lesson ready' : 'content in preparation'}`)}</small></div>{available && lessonId && <button type="button" onClick={() => onOpenLesson(lessonId)} aria-label={`${localize(item.title, locale)} dersini aç`}><Icon name="chevron-right" /></button>}</li>; })}
       </ol>
-      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 3 ders oynanabilir · toplam 102 ders' : 'First 3 lessons playable · 102 lessons total'}<Icon name="arrow-right" /></button>}
+      {!expanded && onViewAll && <button type="button" className="text-button path-all-button" onClick={onViewAll}>{locale === 'tr' ? 'İlk 6 ders oynanabilir · toplam 102 ders' : 'First 6 lessons playable · 102 lessons total'}<Icon name="arrow-right" /></button>}
     </section>
   );
 }
@@ -510,7 +517,7 @@ function LessonWorkspace({ locale, lessonId, stepId, onStep, onBack, progress, o
     <div className="lesson-page enter-view" data-lesson-top tabIndex={-1}>
       <button className="back-button" type="button" onClick={onBack}><Icon name="arrow-right" />{locale === 'tr' ? 'Ders planına dön' : 'Back to course plan'}</button>
       <div className="lesson-heading"><div><p className="section-kicker">{locale === 'tr' ? `Ders ${lesson.order} / ${coursePlan.length} · Öğrenme laboratuvarı` : `Lesson ${lesson.order} / ${coursePlan.length} · Learning laboratory`}</p><h1>{localize(lesson.title, locale)}</h1><p>{localize(lesson.summary, locale)}</p></div><div className="lesson-reward-summary"><span><Icon name="spark" /><b>{progress.xp}</b><small>XP</small></span><span><Icon name="repeat" /><b>{progress.streak}</b><small>{locale === 'tr' ? 'seri' : 'streak'}</small></span></div></div>
-      <div className="lesson-stage-progress"><span><strong>{String(activeStepIndex + 1).padStart(2, '0')}</strong> / {String(lesson.steps.length).padStart(2, '0')}</span><div><i style={{ width: `${stageProgress}%` }} /></div><small>{localize(activeStep.title, locale)}</small></div>
+      <div className="lesson-stage-progress" data-active-step-top tabIndex={-1}><span><strong>{String(activeStepIndex + 1).padStart(2, '0')}</strong> / {String(lesson.steps.length).padStart(2, '0')}</span><div><i style={{ width: `${stageProgress}%` }} /></div><small>{localize(activeStep.title, locale)}</small></div>
       <div key={activeStep.id} className="lesson-workbench activity-mode foundation-mode lesson-step-transition">
         <aside className="lesson-guidance">
           <section className="lesson-step-card"><div className={`step-kind ${activeStep.kind}`}><Icon name={activeStep.kind === 'game' ? 'spark' : activeStep.kind === 'debug' ? 'repeat' : activeStep.kind === 'lab' ? 'project' : 'book'} /><span>{activeStep.xp} XP</span></div><p className="section-kicker">{locale === 'tr' ? 'Şu anki öğrenme durağı' : 'Current learning stop'}</p><h2>{localize(activeStep.title, locale)}</h2><p>{localize(activeStep.description, locale)}</p><div className="step-objective"><span>Bu adımın kanıtı</span><strong>{localize(activeStep.objective, locale)}</strong></div><ul>{localize(activeStep.bullets, locale).map((bullet) => <li key={bullet}><Icon name="check" /><span>{bullet}</span></li>)}</ul><div className="concept-tags">{lesson.concepts.map((concept) => <span key={concept}>{concept}</span>)}</div></section>
