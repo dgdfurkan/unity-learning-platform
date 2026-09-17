@@ -449,7 +449,9 @@ function WorkspaceShell({
     if (stepId === activeStepId) return;
     setActiveStepId(stepId);
     setMenuOpen(false);
-    scrollToActiveStep();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToActiveStep);
+    });
   };
 
   const openLesson = (lessonId: string) => {
@@ -462,7 +464,9 @@ function WorkspaceShell({
     setActiveStepId(resumeStep.id);
     setStudentView("lesson");
     setMenuOpen(false);
-    scrollToActiveStep();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollToActiveStep);
+    });
   };
 
   useEffect(() => {
@@ -2414,13 +2418,13 @@ function LessonWorkspace({
             </div>
             <p className="section-kicker">
               {locale === "tr"
-                ? "Şu anki öğrenme durağı"
+                ? "Bu bölümde"
                 : "Current learning stop"}
             </p>
             <h2>{localize(activeStep.title, locale)}</h2>
             <p>{localize(activeStep.description, locale)}</p>
             <div className="step-objective">
-              <span>Bu adımın kanıtı</span>
+              <span>Bölümün sonunda</span>
               <strong>{localize(activeStep.objective, locale)}</strong>
             </div>
             <ul>
