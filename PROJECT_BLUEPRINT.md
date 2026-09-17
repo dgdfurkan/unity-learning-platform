@@ -137,34 +137,29 @@ Alıştırma türleri:
 - Proje checkpoint'leri
 - İçerik sürümü ve yayın durumu
 
-Öğrenci oluşturma işlemi istemci tarafında Firebase Admin SDK kullanmaz. Admin claim'i doğrulanan callable Cloud Function, kullanıcıyı güvenli ortamda oluşturur ve `student` rolünü atar.
+Öğrenci oluşturma işlemi istemci tarafında yapılmaz. Admin oturumunu doğrulayan Worker rotası kullanıcıyı güvenli ortamda oluşturur ve `student` rolünü atar.
 
 ## 6. Teknik mimari kararı
 
-### 6.1 Firebase mi VPS mi?
+### 6.1 Ücretsiz sunucu mimarisi
 
-İlk sürüm için Firebase seçilir:
+İlk sürüm ödeme yöntemi istemeyen Cloudflare katmanında çalışır:
 
-- Authentication ile hesap ve oturum;
-- custom claims ile rol;
-- Firestore ile ders, ilerleme, deneme ve geri bildirim;
-- Cloud Storage ile kontrollü ödev dosyaları;
-- Cloud Functions ile admin işlemleri;
-- Emulator Suite ile yerel güvenlik testi.
+- Worker ile kimlik doğrulama, rol ve korumalı API işlemleri;
+- D1 ile kullanıcı, ilerleme, etkinlik, ödev ve bildirim kayıtları;
+- salt + pepper + PBKDF2 ile parola türetme;
+- hash'lenmiş, süreli ve sunucudan iptal edilebilir oturum belirteçleri;
+- yerel D1 ile güvenlik ve veri sahipliği testleri.
 
-Bu seçim sunucu bakımı yükünü azaltır ve az/orta kullanıcı sayısında hızlı geliştirme sağlar. Mevcut VPS ilk sürümün zorunlu bağımlılığı yapılmaz.
-
-Firebase tek başına her ihtiyacı çözmez. Kullanıcının yazdığı keyfî C# kodunu güvenli biçimde derleyip çalıştırmak için ileride ayrı, izole bir yürütme servisi gerekir. İlk sürümde tarayıcı içi sözdizimi/kural denetimi ve önceden tanımlı test senaryoları kullanılabilir. Gerçek derleme servisi gerektiğinde ağ erişimi kapalı, süre/bellek sınırları olan Cloud Run container'ı veya eşdeğer bir sandbox olarak tasarlanır.
+Kullanıcının yazdığı keyfî C# kodunu güvenli biçimde derleyip çalıştırmak için ileride ayrı, izole bir yürütme servisi gerekir. İlk sürümde tarayıcı içi sözdizimi/kural denetimi ve önceden tanımlı test senaryoları kullanılır.
 
 ### 6.2 Yayın modeli
 
 - Frontend: GitHub Pages
-- Backend: Firebase servisleri
+- Backend: Cloudflare Worker + D1 Free
 - CI/CD: GitHub Actions
 - SPA yönlendirme: GitHub Pages uyumlu base path ve 404 fallback ya da hash tabanlı yönlendirme
-- Firebase Authentication: GitHub Pages alan adı Authorized Domains listesine eklenir
-
-Firebase Hosting, SPA rewrite ve aynı alan adı akışı bakımından daha sade bir alternatif olabilir; ancak mevcut karar GitHub Pages olduğu için ilk kurulum bu yönde tutulur.
+- API CORS listesine GitHub Pages origin'i ve yerel geliştirme origin'i eklenir.
 
 ### 6.3 Bileşen sınırları
 
@@ -172,10 +167,9 @@ Firebase Hosting, SPA rewrite ve aynı alan adı akışı bakımından daha sade
 flowchart TD
     UI["React / PWA arayüzü"] --> APP["Application use-case katmanı"]
     APP --> PORTS["Domain portları"]
-    PORTS --> FB["Firebase adapter'ları"]
-    FB --> AUTH["Authentication + Claims"]
-    FB --> DB["Firestore"]
-    FB --> STORE["Cloud Storage"]
+    PORTS --> API["Cloud API adapter'ı"]
+    API --> AUTH["Worker oturum ve rol denetimi"]
+    API --> DB["D1"]
     APP --> LAB["Alıştırma ve simülasyon motoru"]
     LAB -. "İleri aşama" .-> RUNNER["İzole C# runner"]
 ```
@@ -195,8 +189,8 @@ src/
     assignments/
     review-queue/
   services/
-    firebase/
-    repositories/
+    cloudflareGateway.ts
+    dataGateway.ts
   simulations/
     code/
     physics-2d/
@@ -206,11 +200,9 @@ src/
     i18n/
     hooks/
     utils/
-functions/
+worker/
   src/
-    auth/
-    students/
-    assignments/
+  migrations/
 ```
 
 ## 7. Başlangıç veri modeli
@@ -233,12 +225,12 @@ Gereksiz veri tutulmaz. Doğum tarihi, telefon, konum, cihaz parmak izi veya ö�
 ## 8. Güvenlik
 
 - İlk admin kullanıcı kontrollü bootstrap ile atanır.
-- Yeni kullanıcı oluşturma callable function'ı `admin: true` claim'i olmadan çalışmaz.
+- Yeni kullanıcı oluşturma rotası doğrulanmış admin oturumu olmadan çalışmaz.
 - Öğrenci yalnızca kendi enrollment, attempt, mastery, submission ve kendisine açık içerik kayıtlarını okuyabilir.
 - Öğrenci kendi puanını, rolünü veya değerlendirme sonucunu yazamaz.
-- Dosya türü, boyutu ve sahipliği Storage Rules ile doğrulanır.
-- Service account anahtarları frontend'e ve GitHub'a girmez.
-- Firebase App Check üretim ortamında etkinleştirilir.
+- İstek boyutu, veri biçimi ve veri sahipliği Worker üzerinde doğrulanır.
+- Parola pepper'ı ve dağıtım anahtarları frontend'e veya kaynak koduna girmez.
+- CORS izin listesi ve sıkı Content Security Policy üretimde etkinleştirilir.
 - Kritik admin işlemleri için sınırlı audit kaydı tutulur; ayrıntılı davranış gözetimi yapılmaz.
 
 ## 9. Görsel yön
@@ -280,7 +272,7 @@ Animasyonlar `transform` ve `opacity` üzerinde çalışır; layout thrashing ol
 
 - İlk girişte Monaco, Three.js, grafik ve ders motoru yüklenmez.
 - Her ağır alıştırma bağımsız async chunk olur.
-- İlk rota için hedef sıkıştırılmış JavaScript bütçesi 180 KB civarıdır; Firebase entegrasyonu sonrası ölçülerek güncellenir.
+- İlk rota için hedef sıkıştırılmış JavaScript bütçesi 180 KB civarıdır; uzak API entegrasyonu sonrası ölçülerek güncellenir.
 - Görseller responsive AVIF/WebP, sabit ölçülü ve lazy-load edilir.
 - 3D canvas gerektiğinde açılır, DPR sınırı uygulanır ve sahne kapanırken GPU kaynakları temizlenir.
 - Skeleton yalnızca gerçek bekleme varsa gösterilir; 300 ms altı işlemlerde parlayan loader kullanılmaz.
@@ -300,7 +292,7 @@ Animasyonlar `transform` ve `opacity` üzerinde çalışır; layout thrashing ol
 ### Aşama 0 — Temel
 
 - Repo, proje kuralları, seçilmiş skill'ler ve tasarım sistemi
-- Firebase proje bağlantısı için hazırlık
+- Ücretsiz Worker + D1 bağlantısı için hazırlık
 - Uygulama kabuğu ve routing
 
 ### Aşama 1 — Kimlik ve iki panel
@@ -333,7 +325,7 @@ Animasyonlar `transform` ve `opacity` üzerinde çalışır; layout thrashing ol
 - Offline kabuk ve safe-area doğrulaması
 - Playwright cihaz matrisi
 - GitHub Actions ve GitHub Pages
-- Firebase Rules/Functions üretim kapısı
+- Worker yetki ve D1 migration üretim kapısı
 
 ## 14. Uygulama durumu ve sıradaki kapı
 
@@ -346,16 +338,17 @@ Animasyonlar `transform` ve `opacity` üzerinde çalışır; layout thrashing ol
 - Türkçe/İngilizce arayüz temeli;
 - responsive uygulama kabuğu, safe-area kuralları ve PWA dosyaları;
 - GitHub Pages yayın iş akışı;
-- Firebase'den bağımsız `DataGateway` sınırı ve geçici tanıtım adaptörü.
+- sağlayıcıdan bağımsız `DataGateway` sınırı ve geçici tanıtım adaptörü;
+- Cloudflare Worker + D1 tabanlı güvenli canlı veri katmanı.
 
-Firebase bilgileri geldiğinde sıradaki üretim kapısı:
+Cloudflare bilgileri eklendiğinde sıradaki üretim kapısı:
 
-1. Firebase proje yapılandırması ve Emulator Suite;
-2. Authentication ile gerçek oturum;
-3. custom claim tabanlı role guard;
-4. admin yetkisini sunucuda doğrulayan callable `createStudent` Function;
-5. Firestore ve Storage Security Rules testleri;
-6. tanıtım adaptörünün üretim bundle'ından çıkarılması;
+1. D1 veritabanı ve Worker dağıtımı;
+2. sunucu taraflı gerçek oturum;
+3. rol tabanlı API guard;
+4. admin yetkisini sunucuda doğrulayan `createStudent` rotası;
+5. D1 veri sahipliği ve oturum iptali testleri;
+6. canlı API değişkeniyle tanıtım adaptörünün kapanması;
 7. Playwright ile giriş, rol, öğrenci oluşturma ve cihaz matrisi.
 
 Bu güvenlik kapısı tamamlanmadan gerçek öğrenci verisi tutulmaz. Ayrıntılı ders metinleri ve ağır 3D sahneler de bu kapıdan sonra dikey dilimler hâlinde geliştirilir.
@@ -365,6 +358,6 @@ Bu güvenlik kapısı tamamlanmadan gerçek öğrenci verisi tutulmaz. Ayrıntı
 - Unity'nin resmi execution order dokümanı, lifecycle konularının ezber listesi yerine nesnenin sahneye girişinden fizik ve frame güncellemelerine uzanan zaman çizelgesiyle öğretilmesi gerektiğini destekler: [Order of execution for event functions](https://docs.unity3d.com/Manual/execution-order.html).
 - Unity Learn'in proje üzerinden ilerleyen yaklaşımı, her kavramın gerçek bir sahne davranışına bağlanması kararına temel oluşturur: [Unity Essentials Pathway](https://learn.unity.com/pathway/unity-essentials).
 - Code Monkey'nin güncel C# yaklaşımındaki video + companion project + quiz + doğrudan kod yazılan interaktif alıştırma birleşimi incelendi. Platform bu yapıyı birebir kopyalamaz; canlı eğitmen geri bildirimi, mastery ve öğrencinin kendi Unity projesiyle birleştirir: [Learn C# from Beginner to Advanced](https://unitycodemonkey.teachable.com/p/learn-c-from-beginner-to-advanced).
-- Firebase custom claims ve Security Rules, admin/öğrenci rolünün yalnızca arayüzde değil backend erişiminde de uygulanması için temel alınır: [Control Access with Custom Claims](https://firebase.google.com/docs/auth/admin/custom-claims).
-- Öğrenciyi admin panelinden oluşturma, istemcide değil Admin SDK kullanan güvenli bir sunucu işleminde yapılır: [Manage Users](https://firebase.google.com/docs/auth/admin/manage-users) ve [Callable Functions](https://firebase.google.com/docs/functions/callable).
+- Worker secret'ları parola pepper'ı ve kurulum anahtarını kaynak kodundan ayırır: [Workers secrets](https://developers.cloudflare.com/workers/configuration/secrets/).
+- D1 prepared statement ve bound parametreleri kullanıcı girdisini SQL metninden ayırır: [D1 prepared statements](https://developers.cloudflare.com/d1/worker-api/prepared-statements/).
 - Git'in yalnızca komut ezberi olarak kalmaması için SourceTree üzerinden clone, commit, push, pull ve branch akışları gerçek ders projesinde uygulanır: [Commit, Push, and Pull](https://support.atlassian.com/sourcetree/kb/commit-push-and-pull-a-repository-on-sourcetree/).

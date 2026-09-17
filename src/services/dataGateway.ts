@@ -1,14 +1,14 @@
 import type { AppNotification, Assignment, CompleteStepInput, CompleteStepResult, CreateAssignmentInput, CreateStudentInput, DataGateway, SessionUser, Student, StudentDetail } from '../domain/models';
 import type { LearningProgress } from '../learning/progress';
 import { DemoDataGateway } from './demoGateway';
-import { isFirebaseConfigured } from './firebaseConfig';
+import { isCloudBackendConfigured } from './backendConfig';
 
-class LazyFirebaseDataGateway implements DataGateway {
-  readonly mode = 'firebase' as const;
+class LazyCloudflareDataGateway implements DataGateway {
+  readonly mode = 'cloudflare' as const;
   private gatewayPromise: Promise<DataGateway> | null = null;
 
   private load() {
-    if (!this.gatewayPromise) this.gatewayPromise = import('./firebaseGateway').then(({ FirebaseDataGateway }) => new FirebaseDataGateway());
+    if (!this.gatewayPromise) this.gatewayPromise = import('./cloudflareGateway').then(({ CloudflareDataGateway }) => new CloudflareDataGateway());
     return this.gatewayPromise;
   }
 
@@ -36,4 +36,4 @@ class LazyFirebaseDataGateway implements DataGateway {
   async markNotificationRead(notificationId: string): Promise<void> { return (await this.load()).markNotificationRead(notificationId); }
 }
 
-export const dataGateway: DataGateway = isFirebaseConfigured ? new LazyFirebaseDataGateway() : new DemoDataGateway();
+export const dataGateway: DataGateway = isCloudBackendConfigured ? new LazyCloudflareDataGateway() : new DemoDataGateway();

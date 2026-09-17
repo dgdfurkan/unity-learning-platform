@@ -5,7 +5,7 @@ const messages = {
     brandDescriptor: 'Unity öğrenme stüdyosu',
     language: 'EN',
     demo: 'Tanıtım verisi',
-    demoDetail: 'Firebase bağlantısında bu adaptör kaldırılacak.',
+    demoDetail: 'Canlı API yapılandırılınca bu yerel tanıtım adaptörü kapanır.',
     signInTitle: 'Kodunu anlayarak oyun geliştir.',
     signInBody: 'Canlı dersleri, kısa pratikleri ve gerçek Unity projelerini tek bir çalışma alanında birleştir.',
     email: 'E-posta',
@@ -92,7 +92,7 @@ const messages = {
     online: 'Senkronize',
   },
   en: {
-    brandDescriptor: 'Unity learning studio', language: 'TR', demo: 'Demo data', demoDetail: 'This adapter will be removed when Firebase is connected.',
+    brandDescriptor: 'Unity learning studio', language: 'TR', demo: 'Demo data', demoDetail: 'This local adapter is disabled when the live API is configured.',
     signInTitle: 'Build games by understanding your code.', signInBody: 'Bring live lessons, focused practice, and real Unity projects into one workspace.',
     email: 'Email', username: 'Username', firstName: 'First name', lastName: 'Last name', password: 'Password', signIn: 'Sign in', signingIn: 'Signing in…', noRegistration: 'Accounts are created by the instructor only.', demoAccounts: 'Demo accounts', admin: 'Admin', student: 'Student',
     greeting: 'Welcome back', logout: 'Sign out', continueLesson: 'Continue lesson', todayFocus: 'Today’s focus', quickStart: 'Fast Track', session: 'Lesson 01 / 102', lessonTitle: 'How does a game work on a computer?', lessonDescription: 'Build the input–rule–state–output model before writing code.', minutes: 'Active learning',

@@ -783,12 +783,14 @@ function WorkspaceShell({
             </span>
             <span
               className={
-                dataGateway.mode === "firebase"
-                  ? "demo-pill firebase-pill"
+                dataGateway.mode === "cloudflare"
+                  ? "demo-pill backend-pill"
                   : "demo-pill"
               }
             >
-              {dataGateway.mode === "firebase" ? "Firebase" : t("demo")}
+              {dataGateway.mode === "cloudflare"
+                ? locale === "tr" ? "Güvenli bulut" : "Secure cloud"
+                : t("demo")}
             </span>
             <button
               className="language-button"

@@ -84,6 +84,6 @@ export const curriculum = {
   'lesson-006-gameobject-component-transform/l6-save-debug': { xp: 50, finale: false },
   'lesson-006-gameobject-component-transform/l6-game': { xp: 45, finale: false },
   'lesson-006-gameobject-component-transform/l6-finale': { xp: 180, finale: true },
-} as const;
+};
 
 export const totalPublishedSteps = 84;

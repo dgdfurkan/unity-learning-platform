@@ -33,14 +33,14 @@ Kullanılacak temel proje skill'leri:
 ## Mimari kurallar
 
 - React + TypeScript kodunu feature tabanlı ve katmanlı düzenle.
-- UI bileşenleri doğrudan Firebase SDK çağrısı yapamaz.
-- Firebase erişimini repository/service adapter'larında tut; domain katmanı Firebase türlerine bağımlı olmasın.
-- Yetkilendirmeyi yalnızca arayüzde gizleme ile çözme. Firebase custom claims ve Security Rules zorunludur.
-- Admin SDK, servis hesabı veya gizli anahtar hiçbir zaman istemci bundle'ına ya da repoya girmez.
+- UI bileşenleri doğrudan Cloudflare D1 veya Worker iç ayrıntılarına erişemez.
+- Uzak veri erişimini `DataGateway` ve servis adapter'larında tut; domain katmanı sağlayıcı türlerine bağımlı olmasın.
+- Yetkilendirmeyi yalnızca arayüzde gizleme ile çözme. Rol denetimi bütün korumalı Worker rotalarında sunucu tarafında zorunludur.
+- D1 kimliği dışındaki secret, parola pepper'ı veya dağıtım anahtarı hiçbir zaman istemci bundle'ına ya da repoya girmez.
 - Yeni global state kütüphanesi eklemeden önce yerel state, URL state veya server state ile çözülemeyeceğini göster.
 - SOLID ilkelerini pragmatik uygula. Tek kullanımlık soyutlama, gereksiz interface veya “pattern olsun diye pattern” üretme.
 - Büyük özellikleri dikey dilimlerle geliştir: domain tipi + veri erişimi + ekran + durumlar + test.
-- Firestore sorgularını ekran bileşenlerine yayma; sorgu sözleşmelerini tek yerde tut.
+- API çağrılarını ekran bileşenlerine yayma; sorgu sözleşmelerini gateway katmanında tut.
 
 ## Performans kuralları
 
@@ -84,7 +84,7 @@ Kullanılacak temel proje skill'leri:
 ## Test ve teslim kapısı
 
 - Kritik akışlar: giriş, rol yönlendirme, admin öğrenci oluşturma, ödev atama, öğrenci gönderimi, puan güncelleme, tekrar kuyruğu.
-- Firebase Emulator Suite ile auth/rules/functions senaryolarını test et.
+- Worker + yerel D1 ile kimlik, rol, oturum iptali ve veri sahipliği senaryolarını test et.
 - Playwright ile desktop, tablet ve mobil görünüm; klavye navigasyonu; güvenli alan; çevrimdışı PWA kabuğu kontrol edilir.
 - Test için kullanılan demo yetki hiçbir üretim bundle'ında kalamaz.
 - Bir özelliği “tamamlandı” saymadan önce boş, yükleniyor, hata, yetkisiz ve başarılı durumlarını doğrula.

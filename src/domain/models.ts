@@ -93,7 +93,7 @@ export interface CompleteStepResult {
 }
 
 export interface DataGateway {
-  readonly mode: 'firebase' | 'demo';
+  readonly mode: 'cloudflare' | 'demo';
   observeSession(listener: (user: SessionUser | null) => void): () => void;
   signIn(username: string, password: string): Promise<SessionUser>;
   signOut(): Promise<void>;

@@ -1,0 +1,14 @@
+name = "levelup-academy-api"
+main = "src/index.js"
+compatibility_date = "2026-08-06"
+workers_dev = true
+
+[vars]
+SITE_ORIGIN = "__SITE_ORIGIN__"
+ADMIN_USERNAME = "__ADMIN_USERNAME__"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "levelup-academy"
+database_id = "__D1_DATABASE_ID__"
+migrations_dir = "migrations"

@@ -27,16 +27,7 @@ jobs:
       - name: Build application
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ vars.FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
-          VITE_FIREBASE_APPCHECK_SITE_KEY: ${{ vars.VITE_FIREBASE_APPCHECK_SITE_KEY }}
-          VITE_FIREBASE_FUNCTIONS_REGION: ${{ vars.VITE_FIREBASE_FUNCTIONS_REGION }}
-          VITE_ADMIN_USERNAME: ${{ vars.VITE_ADMIN_USERNAME }}
-          VITE_ADMIN_EMAIL_DOMAIN: ${{ vars.VITE_ADMIN_EMAIL_DOMAIN }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:
@@ -53,8 +44,8 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v5
 
-  firebase:
-    if: ${{ vars.FIREBASE_PROJECT_ID != '' && vars.FIREBASE_ADMIN_UID != '' }}
+  cloudflare:
+    if: ${{ vars.CLOUDFLARE_D1_DATABASE_ID != '' && vars.VITE_API_BASE_URL != '' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -65,28 +56,47 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm ci --prefix functions
-      - name: Validate protected Firebase settings
+      - name: Validate protected Cloudflare settings
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          FIREBASE_AUTH_PEPPER: ${{ secrets.FIREBASE_AUTH_PEPPER }}
-        run: node -e "if (!process.env.FIREBASE_SERVICE_ACCOUNT || !process.env.FIREBASE_AUTH_PEPPER) process.exit(1)"
-      - name: Prepare Firebase service account
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LEVELUP_AUTH_PEPPER: ${{ secrets.LEVELUP_AUTH_PEPPER }}
+          LEVELUP_BOOTSTRAP_TOKEN: ${{ secrets.LEVELUP_BOOTSTRAP_TOKEN }}
+          LEVELUP_ADMIN_PASSWORD: ${{ secrets.LEVELUP_ADMIN_PASSWORD }}
+        run: node -e "for (const key of ['CLOUDFLARE_API_TOKEN','CLOUDFLARE_ACCOUNT_ID','LEVELUP_AUTH_PEPPER','LEVELUP_BOOTSTRAP_TOKEN','LEVELUP_ADMIN_PASSWORD']) if (!process.env[key]) process.exit(1)"
+      - name: Prepare Worker configuration
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: node -e "require('node:fs').writeFileSync(process.env.RUNNER_TEMP + '/firebase-service-account.json', process.env.FIREBASE_SERVICE_ACCOUNT)"
-      - name: Build secure backend
-        run: npm run build:functions
-      - name: Update password pepper
+          CLOUDFLARE_D1_DATABASE_ID: ${{ vars.CLOUDFLARE_D1_DATABASE_ID }}
+          LEVELUP_SITE_ORIGIN: https://dgdfurkan.github.io
+          LEVELUP_ADMIN_USERNAME: ${{ vars.LEVELUP_ADMIN_USERNAME }}
+        run: node scripts/prepare-worker-config.mjs
+      - name: Build curriculum security manifest
+        run: npm run check:worker
+      - name: Apply D1 migrations
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-          FIREBASE_AUTH_PEPPER: ${{ secrets.FIREBASE_AUTH_PEPPER }}
-        run: node -e "process.stdout.write(process.env.FIREBASE_AUTH_PEPPER)" | npx --yes firebase-tools@15.30.1 functions:secrets:set AUTH_PEPPER --data-file=- --project "${{ vars.FIREBASE_PROJECT_ID }}"
-      - name: Deploy functions and Firestore policy
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.133.0 d1 migrations apply DB --remote --config worker/wrangler.ci.toml
+      - name: Deploy free backend
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: npx --yes firebase-tools@15.30.1 deploy --project "${{ vars.FIREBASE_PROJECT_ID }}" --only functions,firestore:rules,firestore:indexes --non-interactive
-      - name: Apply the admin security claim
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.133.0 deploy --config worker/wrangler.ci.toml
+      - name: Upload protected Worker secrets
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
-        run: npm --prefix functions run set-admin -- "${{ vars.FIREBASE_ADMIN_UID }}" "${{ vars.VITE_ADMIN_USERNAME }}"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          LEVELUP_AUTH_PEPPER: ${{ secrets.LEVELUP_AUTH_PEPPER }}
+          LEVELUP_BOOTSTRAP_TOKEN: ${{ secrets.LEVELUP_BOOTSTRAP_TOKEN }}
+        run: |
+          printf '%s' "$LEVELUP_AUTH_PEPPER" | npx --yes wrangler@4.133.0 secret put AUTH_PEPPER --config worker/wrangler.ci.toml
+          printf '%s' "$LEVELUP_BOOTSTRAP_TOKEN" | npx --yes wrangler@4.133.0 secret put BOOTSTRAP_TOKEN --config worker/wrangler.ci.toml
+      - name: Create or update admin account
+        env:
+          API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          LEVELUP_ADMIN_USERNAME: ${{ vars.LEVELUP_ADMIN_USERNAME }}
+          LEVELUP_ADMIN_PASSWORD: ${{ secrets.LEVELUP_ADMIN_PASSWORD }}
+          LEVELUP_BOOTSTRAP_TOKEN: ${{ secrets.LEVELUP_BOOTSTRAP_TOKEN }}
+        run: |
+          node -e "require('node:fs').writeFileSync(process.env.RUNNER_TEMP + '/admin.json', JSON.stringify({username: process.env.LEVELUP_ADMIN_USERNAME || 'admin', password: process.env.LEVELUP_ADMIN_PASSWORD}))"
+          curl --fail-with-body --silent --show-error --request PUT "$API_BASE_URL/api/setup/admin" --header "Content-Type: application/json" --header "X-Setup-Token: $LEVELUP_BOOTSTRAP_TOKEN" --data-binary "@${RUNNER_TEMP}/admin.json"
